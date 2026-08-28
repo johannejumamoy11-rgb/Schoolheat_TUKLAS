@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#d9534f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>SchoolHeat — TUKLAS 2025</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- Loading Screen -->
+<div id="loading-screen">
+  <div class="loader-wrap">
+    <div class="loader-ring"><div></div></div>
+    <div class="loader-brand">SchoolHeat</div>
+    <div class="loader-sub">TUKLAS 2025 • MNHS</div>
+    <div class="loader-track"><div class="loader-fill"></div></div>
+  </div>
+</div>
+
+<!-- App -->
+<div id="app" class="hidden">
+
+  <!-- Header -->
+  <header class="app-header">
+    <div class="header-inner">
+      <div class="header-logo">
+        <img src="assets/school-logo.png" alt="MNHS" id="header-logo-img">
+        <div>
+          <h1>SchoolHeat</h1>
+          <span>MNHS • TUKLAS 2025</span>
+        </div>
+      </div>
+      <div class="header-status" id="conn-badge">
+        <span class="dot"></span><span class="txt">Offline</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main -->
+  <main class="main-wrap">
+
+    <!-- MONITOR -->
+    <section class="tab-panel active" data-tab="monitor">
+      <div class="panel-head"><h2>🌡️ Heat Index Monitor</h2><p>Live temperature & humidity readings</p></div>
+      <div class="card">
+        <div class="live-pill"><span class="pulse"></span> LIVE</div>
+        <div class="gauge-box">
+          <canvas id="heatGauge" width="300" height="300"></canvas>
+          <div class="gauge-center">
+            <span id="g-val">--</span><span id="g-unit">°C</span>
+            <span id="g-status">Ready</span>
+          </div>
+        </div>
+
+        <div class="form-grid">
+          <div class="field">
+            <label>📍 Location</label>
+            <select id="loc-select"></select>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label>🌡️ Temperature</label>
+              <div class="input-wrap">
+                <input type="number" id="temp-in" placeholder="0.0" step="0.1" min="0" max="60">
+                <span class="suffix">°C</span>
+              </div>
+            </div>
+            <div class="field">
+              <label>💧 Humidity</label>
+              <div class="input-wrap">
+                <input type="number" id="hum-in" placeholder="0" step="1" min="0" max="100">
+                <span class="suffix">%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button id="btn-calc" class="btn pri">🔥 Calculate Heat Index</button>
+          <button id="btn-auto" class="btn sec">⚡ Auto-Read Arduino</button>
+          <button id="btn-sim" class="btn sec">🎲 Simulate</button>
+        </div>
+
+        <div id="result-box" class="hidden">
+          <div class="res-head">
+            <span id="res-icon">🌡️</span>
+            <div>
+              <h3 id="res-title">Status</h3>
+              <p id="res-advice">Advice</p>
+            </div>
+          </div>
+          <div class="res-grid">
+            <div class="res-item"><span>Heat Index</span><b id="res-hi">--</b><small>°C</small></div>
+            <div class="res-item"><span>Temperature</span><b id="res-temp">--</b><small>°C</small></div>
+            <div class="res-item"><span>Humidity</span><b id="res-hum">--</b><small>%</small></div>
+          </div>
+          <div class="res-time" id="res-time"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- DASHBOARD -->
+    <section class="tab-panel" data-tab="dashboard">
+      <div class="panel-head"><h2>📋 Campus Dashboard</h2><p>Overview of all monitored locations</p></div>
+      <div class="stats-row">
+        <div class="stat-box safe"><span class="s-icon">✅</span><b id="st-safe">0</b><span>Safe</span></div>
+        <div class="stat-box caution"><span class="s-icon">⚠️</span><b id="st-caution">0</b><span>Caution</span></div>
+        <div class="stat-box danger"><span class="s-icon">🔥</span><b id="st-danger">0</b><span>Danger</span></div>
+        <div class="stat-box total"><span class="s-icon">📍</span><b id="st-total">0</b><span>Readings</span></div>
+      </div>
+      <div class="card">
+        <div class="filter-bar">
+          <h3>All Locations</h3>
+          <div class="filter-pills">
+            <button class="pill active" data-f="all">All</button>
+            <button class="pill" data-f="safe">Safe</button>
+            <button class="pill" data-f="caution">Caution</button>
+            <button class="pill" data-f="danger">Danger</button>
+          </div>
+        </div>
+        <div id="loc-list" class="loc-list"></div>
+      </div>
+    </section>
+
+    <!-- HISTORY -->
+    <section class="tab-panel" data-tab="history">
+      <div class="panel-head"><h2>📊 Reading History</h2><p>All recorded measurements</p></div>
+      <div class="card table-card">
+        <div class="table-top">
+          <select id="hist-filter"><option value="all">All Locations</option></select>
+          <button id="btn-export" class="btn sm">📥 Export CSV</button>
+          <button id="btn-clear" class="btn sm danger">🗑️ Clear</button>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table" id="hist-table">
+            <thead><tr><th>Time</th><th>Location</th><th>Temp</th><th>Hum</th><th>HI</th><th>Status</th><th></th></tr></thead>
+            <tbody id="hist-body"></tbody>
+          </table>
+        </div>
+        <div id="hist-empty" class="empty hidden">
+          <div class="empty-icon">📊</div>
+          <p>No readings yet</p>
+          <span>Go to Monitor to add your first reading</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- FORECAST -->
+    <section class="tab-panel" data-tab="forecast">
+      <div class="panel-head"><h2>🔮 7-Day Forecast</h2><p>Predicted heat index based on history</p></div>
+      <div class="card chart-card">
+        <canvas id="forecastChart" width="600" height="280"></canvas>
+      </div>
+      <div id="forecast-cards" class="forecast-grid"></div>
+    </section>
+
+    <!-- MAP -->
+    <section class="tab-panel" data-tab="map">
+      <div class="panel-head"><h2>🗺️ Campus Hazard Map</h2><p>Click any marker for details</p></div>
+      <div class="map-wrap">
+        <div class="map-img-wrap">
+          <img src="assets/campus-map.jpg" alt="Campus Map" id="campus-img" onerror="this.style.display='none';document.getElementById('map-fallback').style.display='flex';">
+          <div id="map-fallback" class="map-fallback" style="display:none">
+            <p>📍 Campus map not found.<br>Add <code>assets/campus-map.jpg</code></p>
+          </div>
+          <div id="map-markers" class="map-markers"></div>
+        </div>
+        <div class="map-legend-bar">
+          <span><i class="dot safe"></i> Safe (&lt;27°C)</span>
+          <span><i class="dot caution"></i> Caution (27-32°C)</span>
+          <span><i class="dot danger"></i> Danger (32-41°C)</span>
+          <span><i class="dot extreme"></i> Extreme (&gt;41°C)</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section class="tab-panel" data-tab="settings">
+      <div class="panel-head"><h2>⚙️ Settings</h2><p>Connections & preferences</p></div>
+
+      <div class="card setting-card">
+        <div class="set-icon">☁️</div>
+        <div class="set-body">
+          <h3>Cloud Mode (Firebase)</h3>
+          <p>Live data from anywhere. Judges just open the URL!</p>
+          <div class="toggle-line">
+            <label class="switch"><input type="checkbox" id="tog-cloud"><span></span></label>
+            <span>Enable Cloud Mode</span>
+          </div>
+          <div id="cloud-box" class="cloud-box hidden">
+            <input type="text" id="fb-url" placeholder="https://your-project.firebaseio.com">
+            <button id="btn-fb-con" class="btn sm pri">Connect</button>
+          </div>
+          <div class="set-status" id="fb-stat">Not connected</div>
+        </div>
+      </div>
+
+      <div class="card setting-card">
+        <div class="set-icon">🔌</div>
+        <div class="set-body">
+          <h3>Local Bridge Server</h3>
+          <p>Direct Arduino connection on same network</p>
+          <input type="text" id="bridge-url" placeholder="http://192.168.1.50:5000">
+          <button id="btn-br-con" class="btn sm pri">Connect</button>
+          <div class="set-status" id="bridge-stat">Not connected</div>
+        </div>
+      </div>
+
+      <div class="card setting-card">
+        <div class="set-icon">📱</div>
+        <div class="set-body">
+          <h3>SMS Alert Settings</h3>
+          <p>Auto-send SMS when heat index exceeds threshold</p>
+          <div class="field">
+            <label>SMS Number (+63XXXXXXXXXX)</label>
+            <input type="tel" id="sms-num" placeholder="+639123456789">
+          </div>
+          <div class="field">
+            <label>Alert Threshold (°C)</label>
+            <input type="number" id="sms-thresh" value="41" min="30" max="60">
+          </div>
+          <div class="toggle-line">
+            <label class="switch"><input type="checkbox" id="tog-sms"><span></span></label>
+            <span>Enable Auto-SMS Alerts</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card setting-card">
+        <div class="set-icon">ℹ️</div>
+        <div class="set-body">
+          <h3>About</h3>
+          <p><b>Version:</b> 3.1 — TUKLAS Final</p>
+          <p><b>School:</b> Mahaplag National High School</p>
+          <p><b>Features:</b> Firebase Cloud, PWA, Arduino Bridge, 7-Day Forecast, Hazard Map, SMS Alerts</p>
+          <button id="btn-wipe" class="btn danger">Clear All Data</button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Toast Container -->
+  <div id="toast-box"></div>
+
+  <!-- Bottom Nav -->
+  <nav class="bot-nav">
+    <button class="nav-btn active" data-tab="monitor">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/><circle cx="12" cy="12" r="4"/></svg>
+      <span>Monitor</span>
+    </button>
+    <button class="nav-btn" data-tab="dashboard">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      <span>Dashboard</span>
+    </button>
+    <button class="nav-btn" data-tab="history">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+      <span>History</span>
+    </button>
+    <button class="nav-btn" data-tab="forecast">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+      <span>Forecast</span>
+    </button>
+    <button class="nav-btn" data-tab="map">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="1 6 1 22 8 18 16 22 21 18 21 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
+      <span>Map</span>
+    </button>
+    <button class="nav-btn" data-tab="settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      <span>Settings</span>
+    </button>
+  </nav>
+
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
