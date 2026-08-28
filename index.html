@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>SchoolHeat</title>
+  <base target="_blank">
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="style.css">
+  <meta name="theme-color" content="#d9534f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+</head>
+<body>
+  <div id="loading-screen">
+    <div class="loading-content">
+      <div class="loading-logo">🌡️</div>
+      <h1>SchoolHeat</h1>
+      <p>Heat Index Monitoring System</p>
+      <div class="loading-bar"><div class="loading-progress"></div></div>
+    </div>
+  </div>
+
+  <div id="app" style="display:none;">
+    <header>
+      <div class="header-content">
+        <div class="logo-section">
+          <span class="logo-icon">🌡️</span>
+          <div>
+            <h1>SchoolHeat</h1>
+            <p class="subtitle">Heat Index Monitoring System <span class="live-badge">● LIVE</span></p>
+          </div>
+        </div>
+        <div class="header-actions">
+          <button id="darkModeToggle" class="icon-btn" title="Toggle Dark Mode">🌙</button>
+          <button id="soundToggle" class="icon-btn" title="Toggle Sound">🔊</button>
+        </div>
+      </div>
+    </header>
+
+    <nav class="tab-nav">
+      <button class="tab-btn active" data-tab="monitor">🌡️ Monitor</button>
+      <button class="tab-btn" data-tab="history">📊 History</button>
+      <button class="tab-btn" data-tab="prediction">🔮 Prediction</button>
+      <button class="tab-btn" data-tab="dashboard">📋 Dashboard</button>
+      <button class="tab-btn" data-tab="map">🗺️ Map</button>
+      <button class="tab-btn" data-tab="settings">⚙️ Settings</button>
+    </nav>
+
+    <main class="container">
+      <!-- MONITOR TAB -->
+      <div id="monitor" class="tab-content active">
+        <div class="card">
+          <h2>🌡️ Heat Index Monitor</h2>
+          <div class="connection-status" id="connectionStatus">
+            <span class="status-dot offline"></span>
+            <span id="statusText">Offline — Manual Input Mode</span>
+            <span id="cloudStatus" class="ngrok-url"></span>
+          </div>
+
+          <div class="mode-toggle" style="margin-bottom:16px">
+            <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+              <input type="checkbox" id="cloudModeToggle" style="width:20px;height:20px">
+              <span style="font-weight:700">☁️ Use Cloud Mode (Firebase)</span>
+              <span style="font-size:12px;color:#666">— Get live data from anywhere!</span>
+            </label>
+          </div>
+
+          <div class="input-grid">
+            <div class="form-group">
+              <label>Location</label>
+              <select id="locationSelect"></select>
+            </div>
+            <div class="form-group">
+              <label>Temperature (°C)</label>
+              <input type="number" id="tempInput" placeholder="e.g. 35" step="0.1">
+            </div>
+            <div class="form-group">
+              <label>Humidity (%)</label>
+              <input type="number" id="humidityInput" placeholder="e.g. 70" step="0.1">
+            </div>
+          </div>
+
+          <div class="button-row">
+            <button id="calculateBtn" class="btn-primary">Calculate Heat Index</button>
+            <button id="autoReadBtn" class="btn-secondary">🔄 Auto-Read from Arduino</button>
+            <button id="simulateBtn" class="btn-secondary">🎲 Simulate Reading</button>
+          </div>
+
+          <div id="resultArea" class="result-area hidden">
+            <div class="gauge-container">
+              <canvas id="heatGauge" width="280" height="280"></canvas>
+              <div class="gauge-labels">
+                <span class="gauge-val" id="gaugeValue">--</span>
+                <span class="gauge-unit">°C</span>
+                <span class="gauge-status" id="gaugeStatus">--</span>
+              </div>
+            </div>
+            <div class="reading-details">
+              <div class="detail-item"><span class="detail-label">Heat Index:</span><span id="hiValue" class="detail-value">--</span></div>
+              <div class="detail-item"><span class="detail-label">Status:</span><span id="hiStatus" class="detail-value">--</span></div>
+              <div class="detail-item"><span class="detail-label">Advisory:</span><span id="hiAdvice" class="detail-value">--</span></div>
+              <div class="detail-item"><span class="detail-label">Time:</span><span id="hiTime" class="detail-value">--</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- HISTORY TAB -->
+      <div id="history" class="tab-content">
+        <div class="card">
+          <h2>📊 Reading History</h2>
+          <div class="filter-row">
+            <select id="historyLocationFilter"><option value="all">All Locations</option></select>
+            <button id="exportCsvBtn" class="btn-secondary">📥 Export CSV</button>
+            <button id="clearHistoryBtn" class="btn-danger">🗑️ Clear All</button>
+          </div>
+          <div class="table-wrapper">
+            <table id="historyTable">
+              <thead>
+                <tr><th>Time</th><th>Location</th><th>Temp</th><th>Humidity</th><th>Heat Index</th><th>Status</th><th>Action</th></tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div id="historyChartContainer" class="chart-container">
+            <canvas id="historyChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- PREDICTION TAB -->
+      <div id="prediction" class="tab-content">
+        <div class="card">
+          <h2>🔮 7-Day Heat Index Prediction</h2>
+          <p class="help-text">Based on historical same-hour averages from recorded data.</p>
+          <div class="form-group">
+            <label>Select Location</label>
+            <select id="predLocationSelect"></select>
+          </div>
+          <div id="predictionChartContainer" class="chart-container">
+            <canvas id="predictionChart"></canvas>
+          </div>
+          <div id="predictionTable" class="prediction-table"></div>
+        </div>
+      </div>
+
+      <!-- DASHBOARD TAB -->
+      <div id="dashboard" class="tab-content">
+        <div class="card">
+          <h2>📋 Campus Heat Dashboard</h2>
+          <div class="dashboard-stats" id="dashboardStats"></div>
+          <div class="dashboard-grid" id="dashboardGrid"></div>
+          <div class="button-row center">
+            <button id="generateReportBtn" class="btn-primary">📄 Generate Heat Advisory Report</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- MAP TAB -->
+      <div id="map" class="tab-content">
+        <div class="card">
+          <h2>🗺️ Campus Hazard Map</h2>
+          <div class="map-container" id="mapContainer">
+            <img id="campusMapImg" src="assets/campus-map.jpg" alt="Campus Map" onerror="this.style.display='none';document.getElementById('mapFallback').style.display='flex';">
+            <div id="mapFallback" class="map-fallback" style="display:none;">
+              <p>📍 Campus map not found.<br>Please add <code>assets/campus-map.jpg</code></p>
+            </div>
+            <div id="mapMarkers" class="map-markers"></div>
+          </div>
+          <div class="map-legend">
+            <span class="legend-item"><span class="legend-dot safe"></span> Safe</span>
+            <span class="legend-item"><span class="legend-dot caution"></span> Caution</span>
+            <span class="legend-item"><span class="legend-dot extreme-caution"></span> Extreme Caution</span>
+            <span class="legend-item"><span class="legend-dot danger"></span> Danger</span>
+            <span class="legend-item"><span class="legend-dot extreme-danger"></span> Extreme Danger</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- SETTINGS TAB -->
+      <div id="settings" class="tab-content">
+        <div class="card">
+          <h2>⚙️ Settings</h2>
+
+          <div class="settings-section">
+            <h3>☁️ Cloud Mode (Firebase)</h3>
+            <p class="help-text">Enable this to get live data from ANYWHERE. Judges just open the GitHub Pages URL!</p>
+            <div class="form-group">
+              <label>Firebase Database URL</label>
+              <input type="text" id="firebaseUrl" placeholder="https://your-project-default-rtdb.firebaseio.com">
+            </div>
+            <div class="button-row">
+              <button id="connectFirebaseBtn" class="btn-primary">☁️ Connect to Cloud</button>
+              <button id="disconnectFirebaseBtn" class="btn-secondary">Disconnect</button>
+            </div>
+            <div id="firebaseStatus" class="bridge-status">Not connected to cloud</div>
+          </div>
+
+          <div class="settings-section">
+            <h3>🔌 Local Bridge Server</h3>
+            <p class="help-text">Direct connection to Arduino on same network. Use ngrok for cross-network.</p>
+            <div class="form-group">
+              <label>Server URL</label>
+              <input type="text" id="bridgeUrl" placeholder="http://localhost:5000 or https://abc.ngrok.io">
+            </div>
+            <div class="button-row">
+              <button id="connectBridgeBtn" class="btn-primary">Connect</button>
+              <button id="disconnectBridgeBtn" class="btn-secondary">Disconnect</button>
+            </div>
+            <div id="bridgeStatus" class="bridge-status">Not connected</div>
+          </div>
+
+          <div class="settings-section">
+            <h3>🔔 Alert Settings</h3>
+            <div class="form-group">
+              <label>WhatsApp Alert Number</label>
+              <input type="text" id="alertPhone" placeholder="+639123456789">
+            </div>
+            <div class="form-group">
+              <label>Auto-Alert Threshold (°C)</label>
+              <input type="number" id="alertThreshold" value="41" step="1">
+            </div>
+            <div class="form-group">
+              <label><input type="checkbox" id="autoAlertEnabled" checked> Enable Auto-Alerts</label>
+            </div>
+            <button id="saveSettingsBtn" class="btn-primary">Save Settings</button>
+          </div>
+
+          <div class="settings-section">
+            <h3>📱 App Info</h3>
+            <p><strong>Version:</strong> 2.0 — TUKLAS Cloud Edition</p>
+            <p><strong>Features:</strong> Firebase Cloud, Offline PWA, Arduino Bridge, 7-Day Prediction</p>
+            <p><strong>School:</strong> Mahaplag National High School</p>
+            <button id="installBtn" class="btn-secondary" style="display:none;">📲 Install App</button>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <div id="reportModal" class="modal hidden">
+      <div class="modal-content">
+        <span class="modal-close">&times;</span>
+        <h2>📄 Heat Advisory Report</h2>
+        <div id="reportContent"></div>
+        <div class="button-row center">
+          <button id="printReportBtn" class="btn-primary">🖨️ Print Report</button>
+          <button id="closeReportBtn" class="btn-secondary">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="toastContainer"></div>
+    <button id="fab" class="fab" title="Go to Monitor">🌡️</button>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

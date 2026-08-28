@@ -1,0 +1,93 @@
+================================================================================
+  SCHOOLHEAT - METHOD 3: OFFLINE USB TETHERING
+  No WiFi? No Internet? No Problem!
+================================================================================
+
+WHAT IS THIS?
+-------------
+This method lets you share the app with judges even when the venue has:
+- No WiFi
+- No internet
+- No mobile data
+- Nothing!
+
+You create your OWN network between your laptop and the judge's phone
+using a USB cable.
+
+SETUP (Android Phone)
+---------------------
+1. Connect your Android phone to the laptop with a USB cable
+2. On your phone: Settings > Network & Internet > Hotspot & Tethering
+3. Turn ON "USB Tethering"
+4. Your laptop now has internet through your phone (or just a local network)
+
+SETUP (iPhone)
+--------------
+1. Connect iPhone to laptop with USB cable
+2. On iPhone: Settings > Personal Hotspot > Turn ON
+3. On laptop: Network settings should show "iPhone USB"
+4. If not, open iTunes or Finder and trust the device
+
+START THE BRIDGE SERVER
+-----------------------
+Open Command Prompt in SchoolHeat_TUKLAS folder:
+
+    python bridge_server.py --host 0.0.0.0 --port 5000
+
+The --host 0.0.0.0 is IMPORTANT! It allows connections from other devices.
+
+FIND YOUR LAPTOP'S IP ADDRESS
+-----------------------------
+In Command Prompt, run:
+
+    ipconfig
+
+Look for "IPv4 Address" under the adapter that says "Ethernet adapter"
+or "Local Area Connection". It will be something like:
+
+    192.168.137.1
+
+This is the address judges type into their phone browser.
+
+CONNECT THE APP
+---------------
+1. Open SchoolHeat app (or browser)
+2. Go to Settings tab
+3. Enter: http://192.168.137.1:5000 (use YOUR actual IP)
+4. Click Connect
+5. Status: "Online - Arduino Bridge"
+
+JUDGES ACCESS THE APP
+---------------------
+1. Judge connects to your laptop's network (via USB tethering)
+   OR judge is on the same local network created by USB tethering
+2. Judge opens phone browser
+3. Judge types: http://192.168.137.1:5000
+4. Judge sees the app!
+5. Judge can view live Arduino data!
+
+IMPORTANT
+---------
+- The IP address (192.168.137.1) might be DIFFERENT on your laptop.
+  Always check with "ipconfig" first.
+
+- USB tethering creates a one-way connection: laptop gets internet from phone.
+  But it ALSO creates a local network that the phone can use to reach the laptop.
+
+- If this doesn't work, try the ngrok method instead (requires internet).
+
+- Windows Firewall might block the connection. If judges can't connect:
+  1. Open Windows Security > Firewall & Network Protection
+  2. Click "Allow an app through firewall"
+  3. Find "Python" and check both Private and Public boxes
+  4. Or temporarily turn off firewall during demo
+
+COMPETITION DAY CHECKLIST
+-------------------------
+[ ] USB cable (good quality, not charging-only)
+[ ] Android phone OR iPhone
+[ ] Laptop with Python installed
+[ ] Arduino + sensor
+[ ] Paper with IP address written on it
+[ ] Tested the night before!
+================================================================================

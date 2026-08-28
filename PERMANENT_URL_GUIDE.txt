@@ -1,0 +1,83 @@
+================================================================================
+  SCHOOLHEAT - PERMANENT URL & WIRELESS ACCESS GUIDE
+  Complete setup for TUKLAS competition
+================================================================================
+
+OVERVIEW
+--------
+You want TWO things:
+1. PERMANENT URL — a link that never changes
+2. WIRELESS — judges use their phones, no cables
+
+THE SOLUTION: GitHub Pages + Firebase
+--------------------------------------
+[Arduino] → USB → [Your Laptop] → firebase_bridge.py → [Firebase Cloud]
+                                                            ↓
+[Judge's Phone] → opens GitHub URL → reads from Firebase → LIVE DATA!
+
+This means:
+- Your app URL is PERMANENT (GitHub Pages)
+- Data comes from the CLOUD (Firebase)
+- Judges can be ANYWHERE with internet
+- Completely WIRELESS for judges
+- Your laptop just pushes data to the cloud
+
+SETUP STEPS (Do these BEFORE competition day)
+---------------------------------------------
+
+STEP 1: Deploy to GitHub Pages
+  → See GITHUB_PAGES_SETUP.txt
+  → You get: https://yourusername.github.io/schoolheat/
+  → This URL is PERMANENT
+
+STEP 2: Create Firebase Database
+  → See FIREBASE_SETUP.txt
+  → You get a database URL
+  → Configure firebase_bridge.py with your URL
+
+STEP 3: Test Everything
+  1. Run: python firebase_bridge.py
+  2. Open your GitHub URL on your phone
+  3. Go to Settings → enter Firebase URL → Connect
+  4. Check "Use Cloud Mode"
+  5. You should see live Arduino data!
+
+COMPETITION DAY
+---------------
+Just do TWO things:
+
+1. Start pushing data:
+   python firebase_bridge.py
+   (Keep this running!)
+
+2. Tell judges your URL:
+   "Open https://yourusername.github.io/schoolheat/ on your phone"
+
+That's it! Judges see live data instantly. No setup needed on their end.
+
+BACKUP PLANS
+------------
+If Firebase fails:
+  → Use ngrok (see NGROK_SETUP_GUIDE.txt)
+  → Temporary URL, but works instantly
+
+If no internet at venue:
+  → Use Method 3: USB tethering
+  → See METHOD3_OFFLINE_SETUP.txt
+
+If everything fails:
+  → Use manual input mode
+  → The app still works perfectly without Arduino!
+
+WHAT JUDGES EXPERIENCE
+----------------------
+1. Judge opens your GitHub URL on their phone
+2. App loads instantly (it's cached after first visit)
+3. They see "Cloud Mode — Live from Anywhere"
+4. Temperature and humidity update every 5 seconds
+5. They can tap any location, view dashboard, see predictions
+6. They can even generate a report on THEIR phone!
+
+This is professional-grade. Judges will be impressed.
+
+================================================================================

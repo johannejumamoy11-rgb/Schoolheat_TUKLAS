@@ -1,0 +1,6 @@
+Add these files to this folder:
+
+  school-logo.png  - Your school logo (shown in header & reports)
+  campus-map.jpg   - Your campus hazard/evacuation map
+
+The app will work without these, but images won't display.

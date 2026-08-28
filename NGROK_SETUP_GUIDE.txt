@@ -1,0 +1,130 @@
+================================================================================
+  SCHOOLHEAT - CROSS-NETWORK SETUP GUIDE (ngrok)
+  For TUKLAS Competition - Use this when judges are NOT on your WiFi
+================================================================================
+
+WHAT IS NGROK?
+--------------
+ngrok creates a PUBLIC URL (like https://abc123.ngrok.io) that anyone can 
+open on their phone, even if they are on a different network or using mobile 
+data. It tunnels through the internet to your laptop.
+
+STEP 1: INSTALL NGROK (One-time setup)
+--------------------------------------
+1. Go to https://ngrok.com/download
+2. Download the Windows ZIP file
+3. Extract "ngrok.exe" and put it in your SchoolHeat_TUKLAS folder
+4. Sign up for a FREE account at https://dashboard.ngrok.com/signup
+5. Copy your authtoken from the dashboard
+6. Open Command Prompt in your SchoolHeat_TUKLAS folder
+7. Run: ngrok config add-authtoken YOUR_TOKEN_HERE
+
+STEP 2: START EVERYTHING ON COMPETITION DAY
+-------------------------------------------
+You need THREE things running:
+
+TERMINAL 1 - Bridge Server (keeps Arduino data flowing):
+    python bridge_server.py --port COM4
+
+    (Replace COM4 with your actual Arduino port. If you don't know it,
+     just run: python bridge_server.py and it will auto-detect.)
+
+TERMINAL 2 - ngrok (creates public URL):
+    python start_ngrok.py
+
+    This will print something like:
+    PUBLIC URL: https://a1b2c3d4.ngrok.io
+
+    This URL works from ANY phone, ANY network, ANYWHERE!
+
+TERMINAL 3 - Desktop App (optional, for your display):
+    python desktop_app.py
+    OR
+    Double-click dist/SchoolHeat.exe
+
+STEP 3: CONNECT THE APP TO NGROK
+--------------------------------
+1. Open SchoolHeat in your browser (or the .exe)
+2. Go to Settings tab
+3. In "Server URL", enter your ngrok URL:
+   https://a1b2c3d4.ngrok.io
+4. Click "Connect"
+5. Status should show: "Online - Arduino Bridge"
+
+STEP 4: LET JUDGES ACCESS IT
+----------------------------
+Option A - QR Code Poster:
+    1. Double-click "QR_POSTER.html"
+    2. Type your ngrok URL
+    3. Click "Generate QR Code"
+    4. Click "Print Poster"
+    5. Tape it to your booth
+    6. Judges scan with their phone camera!
+
+Option B - Direct URL:
+    1. Tell judges the URL: https://a1b2c3d4.ngrok.io
+    2. They type it in their phone browser
+    3. App opens instantly!
+
+Option C - WhatsApp Share:
+    1. Open the ngrok URL on YOUR phone
+    2. Share via WhatsApp to judges
+    3. They tap the link
+
+STEP 5: WHAT JUDGES SEE ON THEIR PHONE
+--------------------------------------
+- They open the URL
+- They see the SAME app you see
+- They can tap "Auto-Read from Arduino" 
+- They see LIVE temperature and humidity from your sensor!
+- They can enter manual values
+- They can view the dashboard, map, predictions
+- Everything works in real-time
+
+IMPORTANT NOTES
+---------------
+1. ngrok free URLs expire after 2 hours and change every restart.
+   If you restart ngrok, you get a NEW URL. Update the QR poster.
+
+2. Keep your laptop plugged in! ngrok + bridge server + app running
+   will drain battery quickly.
+
+3. The public URL is only active while ngrok is running.
+   Close ngrok = URL stops working.
+
+4. For security, ngrok URLs are random and hard to guess.
+   Only people you share the URL with can access it.
+
+5. If the venue has NO internet at all, use Method 3 (USB tethering)
+   instead. See METHOD3_OFFLINE_SETUP.txt.
+
+TROUBLESHOOTING
+---------------
+Problem: "ngrok command not found"
+Fix: Make sure ngrok.exe is in the SAME folder as start_ngrok.py
+
+Problem: "Failed to connect to ngrok URL"
+Fix: Check that bridge_server.py is still running. ngrok only forwards
+     traffic - the bridge server must be running behind it.
+
+Problem: "Arduino not detected"
+Fix: Check USB cable. Try different COM port. Run:
+     python bridge_server.py --no-arduino (simulation mode)
+
+Problem: "QR code not scanning"
+Fix: Make sure the URL starts with https:// not http://
+     Increase QR code size in the poster settings.
+
+COMPETITION DAY CHECKLIST
+-------------------------
+[ ] Laptop charged + charger packed
+[ ] Arduino + USB cable packed
+[ ] ngrok.exe in SchoolHeat folder
+[ ] ngrok authtoken configured
+[ ] Phone with mobile data (backup)
+[ ] Printed QR poster (with ngrok URL)
+[ ] USB backup with .exe
+[ ] Sample readings already recorded
+
+GOOD LUCK AT TUKLAS! 
+================================================================================
