@@ -1,14 +1,15 @@
-/* ===== SCHOOLHEAT v3.1 - TUKLAS 2025 ===== */
+/* ===== SCHOOLHEAT v3.2 - TUKLAS 2025 (BUG FIXES) ===== */
 (function(){
 'use strict';
 
 // ============================================
 // CONFIG
 // ============================================
-const STORE_KEY = 'sh_v31_data';
-const SETT_KEY = 'sh_v31_sett';
+const STORE_KEY = 'sh_v32_data';
+const SETT_KEY = 'sh_v32_sett';
 const FB_POLL = 4000;
 const BR_POLL = 3000;
+const SMS_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
 
 // ============================================
 // LOCATIONS - Matching campus map legend exactly
@@ -58,6 +59,8 @@ let fbTimer = null, brTimer = null;
 let fbLast = null;
 let busy = false;
 let curTab = 'monitor';
+let smsCooldown = {}; // locId -> timestamp
+let forecastPreds = []; // store for tooltip
 
 // ============================================
 // UTILS
@@ -86,17 +89,31 @@ function load() {
 }
 
 // ============================================
-// HEAT INDEX (Steadman)
+// HEAT INDEX (Steadman / Rothfusz) — FIXED for Celsius input
 // ============================================
-function calcHI(T, H) {
-  T = parseFloat(T); H = parseFloat(H);
-  if (isNaN(T) || isNaN(H)) return null;
-  if (T < -50 || T > 60 || H < 0 || H > 100) return null;
-  const c = [-42.379,2.04901523,10.14333127,-0.22475541,-6.83783e-3,-5.481717e-2,1.22874e-3,8.5282e-4,-1.99e-6];
+function calcHI(Tc, H) {
+  Tc = parseFloat(Tc); H = parseFloat(H);
+  if (isNaN(Tc) || isNaN(H)) return null;
+  if (Tc < -50 || Tc > 60 || H < 0 || H > 100) return null;
+
+  // Convert Celsius input to Fahrenheit for the formula
+  const T = Tc * 9/5 + 32;
+
+  const c = [-42.379, 2.04901523, 10.14333127, -0.22475541, -6.83783e-3, -5.481717e-2, 1.22874e-3, 8.5282e-4, -1.99e-6];
   let HI = c[0] + c[1]*T + c[2]*H + c[3]*T*H + c[4]*T*T + c[5]*H*H + c[6]*T*T*H + c[7]*T*H*H + c[8]*T*T*H*H;
-  if (H < 13 && T >= 80 && T <= 112) HI -= ((13-H)/4)*Math.sqrt((17-Math.abs(T-95))/17);
-  if (H > 85 && T >= 80 && T <= 87) HI += ((H-85)/10)*((87-T)/5);
+
+  // Adjustments (Fahrenheit ranges)
+  if (H < 13 && T >= 80 && T <= 112) {
+    HI -= ((13 - H) / 4) * Math.sqrt((17 - Math.abs(T - 95)) / 17);
+  }
+  if (H > 85 && T >= 80 && T <= 87) {
+    HI += ((H - 85) / 10) * ((87 - T) / 5);
+  }
   if (HI < T) HI = T;
+
+  // Convert result back to Celsius
+  HI = (HI - 32) * 5/9;
+
   return Math.round(HI * 10) / 10;
 }
 
@@ -149,7 +166,7 @@ function drawGauge(val) {
 }
 
 // ============================================
-// TABS - CRITICAL FIX
+// TABS — FIXED: touch + click for mobile
 // ============================================
 function goTab(tab) {
   curTab = tab;
@@ -191,18 +208,35 @@ function clearAll() {
 }
 
 // ============================================
-// SMS ALERT
+// SMS ALERT — FIXED: cooldown + reliable triggering
 // ============================================
 function sendSMS(reading, status) {
   if (!settings.smsOn || !settings.smsNum) return;
-  const num = settings.smsNum.replace(/\D/g,'');
+  let num = settings.smsNum.trim().replace(/\s/g,'');
   if (!num) return;
+  if (!num.startsWith('+')) num = '+' + num;
+
+  // Cooldown check (per location)
+  const now = Date.now();
+  if (smsCooldown[reading.locId] && (now - smsCooldown[reading.locId]) < SMS_COOLDOWN_MS) return;
+  smsCooldown[reading.locId] = now;
+
   const body = `HEAT ALERT: ${reading.locName} is ${status.label} (${reading.hi}°C). ${status.advice}`;
-  window.open(`sms:${num}?body=${encodeURIComponent(body)}`, '_blank');
+  const url = `sms:${num}?body=${encodeURIComponent(body)}`;
+
+  // Use anchor click to bypass popup blockers
+  const a = document.createElement('a');
+  a.href = url;
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+
+  toast(`SMS alert triggered for ${num}`, 'ok');
 }
 
 // ============================================
-// CALCULATE
+// CALCULATE — FIXED: busy lock respected by sim/auto
 // ============================================
 function doCalc() {
   if (busy) return;
@@ -250,6 +284,7 @@ function doCalc() {
 }
 
 function doSim() {
+  if (busy) { toast('Wait for current calculation','warn'); return; }
   const temps = [28,30,33,36,38,40,42,45];
   const hums = [55,60,65,70,75,80,85];
   $('#temp-in').value = temps[Math.floor(Math.random()*temps.length)];
@@ -258,6 +293,7 @@ function doSim() {
 }
 
 function doAuto() {
+  if (busy) { toast('Wait for current calculation','warn'); return; }
   const loc = $('#loc-select').value;
   if (!loc) { toast('Select location first','warn'); return; }
   $('#btn-auto').disabled = true;
@@ -309,7 +345,6 @@ function renderLocList(filter) {
     </div>`;
   }).join('');
 
-  // click to jump to monitor with this location
   $$('.loc-row').forEach(row => {
     row.addEventListener('click', () => {
       $('#loc-select').value = row.dataset.lid;
@@ -359,71 +394,106 @@ function exportCSV() {
 }
 
 // ============================================
-// RENDER FORECAST
+// RENDER FORECAST — FIXED: interactive hover tooltip
 // ============================================
 function renderForecast() {
   const cvs = document.getElementById('forecastChart');
   if (!cvs) return;
   const ctx = cvs.getContext('2d');
   const dpr = window.devicePixelRatio || 1;
-  cvs.width = 600 * dpr; cvs.height = 280 * dpr;
+  const cssW = cvs.clientWidth || 600;
+  const cssH = 280;
+  cvs.width = cssW * dpr; cvs.height = cssH * dpr;
   ctx.scale(dpr, dpr);
-  const W=600, H=280, pad={t:30,r:20,b:45,l:45};
-  const cw = W-pad.l-pad.r, ch = H-pad.t-pad.b;
+  const W = cssW, H = cssH, pad = {t:35,r:25,b:50,l:50};
+  const cw = W - pad.l - pad.r, ch = H - pad.t - pad.b;
 
   ctx.clearRect(0,0,W,H);
 
   const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   const today = new Date();
-  const preds = [];
-  for (let i=0;i<7;i++) {
+  forecastPreds = [];
+  for (let i=0; i<7; i++) {
     const d = new Date(today); d.setDate(today.getDate()+i);
     const dn = days[d.getDay()];
     const same = readings.filter(r => new Date(r.ts).getDay()===d.getDay());
     let avg = same.length ? same.reduce((s,r)=>s+r.hi,0)/same.length : (30+Math.random()*10);
-    avg = Math.round(Math.max(25,Math.min(55,avg+(Math.random()-.5)*3))*10)/10;
-    preds.push({day:dn,date:d.toLocaleDateString(),hi:avg,status:getStatus(avg)});
+    avg = Math.round(Math.max(25, Math.min(55, avg + (Math.random()-.5)*3))*10)/10;
+    forecastPreds.push({day:dn, date:d.toLocaleDateString(), hi:avg, status:getStatus(avg), x:0, y:0});
   }
 
-  // grid
-  ctx.strokeStyle='rgba(255,255,255,.06)'; ctx.lineWidth=1;
-  for(let i=0;i<=5;i++){ const y=pad.t+ch*i/5; ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(W-pad.r,y); ctx.stroke(); }
+  const maxV = 55;
+  const gx = i => pad.l + cw * i / 6;
+  const gy = v => pad.t + ch - ch * v / maxV;
+
+  // Store point coordinates for tooltip
+  forecastPreds.forEach((p, i) => { p.x = gx(i); p.y = gy(p.hi); });
+
+  // grid lines
+  ctx.strokeStyle = 'rgba(255,255,255,.08)';
+  ctx.lineWidth = 1;
+  for (let i=0; i<=5; i++) {
+    const y = pad.t + ch * i / 5;
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(W - pad.r, y); ctx.stroke();
+  }
+  // vertical grid
+  for (let i=0; i<7; i++) {
+    const x = gx(i);
+    ctx.beginPath(); ctx.moveTo(x, pad.t); ctx.lineTo(x, pad.t + ch); ctx.stroke();
+  }
 
   // y labels
-  ctx.fillStyle='rgba(255,255,255,.35)'; ctx.font='11px Inter'; ctx.textAlign='right';
-  for(let i=0;i<=5;i++){ const v=55-55*i/5; ctx.fillText(v.toFixed(0)+'°C',pad.l-8,pad.t+ch*i/5+4); }
-
-  // line
-  const maxV=55;
-  const gx = i => pad.l + cw*i/6;
-  const gy = v => pad.t + ch - ch*v/maxV;
-
-  ctx.beginPath(); ctx.moveTo(gx(0),gy(preds[0].hi));
-  for(let i=1;i<7;i++) ctx.lineTo(gx(i),gy(preds[i].hi));
-  ctx.strokeStyle='#ff6b35'; ctx.lineWidth=3; ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,.5)';
+  ctx.font = 'bold 12px Inter, sans-serif';
+  ctx.textAlign = 'right';
+  for (let i=0; i<=5; i++) {
+    const v = Math.round(55 - 55 * i / 5);
+    ctx.fillText(v + '°C', pad.l - 10, pad.t + ch * i / 5 + 4);
+  }
 
   // area fill
-  ctx.beginPath(); ctx.moveTo(gx(0),gy(preds[0].hi));
-  for(let i=1;i<7;i++) ctx.lineTo(gx(i),gy(preds[i].hi));
-  ctx.lineTo(gx(6),pad.t+ch); ctx.lineTo(gx(0),pad.t+ch); ctx.closePath();
-  const grd = ctx.createLinearGradient(0,pad.t,0,pad.t+ch);
-  grd.addColorStop(0,'rgba(255,107,53,.25)'); grd.addColorStop(1,'rgba(255,107,53,0)');
-  ctx.fillStyle=grd; ctx.fill();
+  ctx.beginPath(); ctx.moveTo(gx(0), gy(forecastPreds[0].hi));
+  for (let i=1; i<7; i++) ctx.lineTo(gx(i), gy(forecastPreds[i].hi));
+  ctx.lineTo(gx(6), pad.t + ch); ctx.lineTo(gx(0), pad.t + ch); ctx.closePath();
+  const grd = ctx.createLinearGradient(0, pad.t, 0, pad.t + ch);
+  grd.addColorStop(0, 'rgba(255,107,53,.30)');
+  grd.addColorStop(1, 'rgba(255,107,53,0)');
+  ctx.fillStyle = grd; ctx.fill();
+
+  // line
+  ctx.beginPath(); ctx.moveTo(gx(0), gy(forecastPreds[0].hi));
+  for (let i=1; i<7; i++) ctx.lineTo(gx(i), gy(forecastPreds[i].hi));
+  ctx.strokeStyle = '#ff6b35'; ctx.lineWidth = 3; ctx.stroke();
 
   // points
-  preds.forEach((p,i)=>{
-    const x=gx(i), y=gy(p.hi);
-    ctx.beginPath(); ctx.arc(x,y,6,0,Math.PI*2); ctx.fillStyle=p.status.color; ctx.fill();
-    ctx.beginPath(); ctx.arc(x,y,6,0,Math.PI*2); ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.stroke();
-    ctx.fillStyle='rgba(255,255,255,.5)'; ctx.font='12px Inter'; ctx.textAlign='center';
-    ctx.fillText(p.day,x,pad.t+ch+18);
-    ctx.fillStyle='rgba(255,255,255,.3)'; ctx.font='10px Inter';
-    ctx.fillText(p.date,x,pad.t+ch+32);
+  forecastPreds.forEach((p, i) => {
+    const x = gx(i), y = gy(p.hi);
+    // outer glow
+    ctx.beginPath(); ctx.arc(x, y, 10, 0, Math.PI*2);
+    ctx.fillStyle = p.status.color + '33'; ctx.fill();
+    // inner point
+    ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI*2);
+    ctx.fillStyle = p.status.color; ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI*2);
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+    // day label
+    ctx.fillStyle = 'rgba(255,255,255,.7)';
+    ctx.font = 'bold 12px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(p.day, x, pad.t + ch + 20);
+    // date label
+    ctx.fillStyle = 'rgba(255,255,255,.4)';
+    ctx.font = '10px Inter, sans-serif';
+    ctx.fillText(p.date, x, pad.t + ch + 36);
+    // value label above point
+    ctx.fillStyle = p.status.color;
+    ctx.font = 'bold 11px Inter, sans-serif';
+    ctx.fillText(p.hi.toFixed(1) + '°', x, y - 14);
   });
 
   // cards
   const box = $('#forecast-cards');
-  box.innerHTML = preds.map(p => `
+  box.innerHTML = forecastPreds.map(p => `
     <div class="fc-card">
       <div class="day">${p.day}</div>
       <div class="temp" style="color:${p.status.color}">${p.hi.toFixed(1)}°C</div>
@@ -433,7 +503,42 @@ function renderForecast() {
 }
 
 // ============================================
-// RENDER MAP - CRITICAL FIX: Accurate coordinates
+// FORECAST TOOLTIP INTERACTION
+// ============================================
+function initForecastInteraction() {
+  const cvs = document.getElementById('forecastChart');
+  const tooltip = document.getElementById('chart-tooltip');
+  if (!cvs || !tooltip) return;
+
+  cvs.addEventListener('mousemove', e => {
+    const rect = cvs.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) * (cvs.width / rect.width / (window.devicePixelRatio||1));
+    const my = (e.clientY - rect.top) * (cvs.height / rect.height / (window.devicePixelRatio||1));
+
+    let nearest = -1, minDist = Infinity;
+    for (let i = 0; i < forecastPreds.length; i++) {
+      const dist = Math.hypot(mx - forecastPreds[i].x, my - forecastPreds[i].y);
+      if (dist < minDist) { minDist = dist; nearest = i; }
+    }
+
+    if (nearest >= 0 && minDist < 40) {
+      const p = forecastPreds[nearest];
+      tooltip.style.display = 'block';
+      tooltip.style.left = (e.pageX + 12) + 'px';
+      tooltip.style.top = (e.pageY - 12) + 'px';
+      tooltip.innerHTML = `<strong>${p.day}, ${p.date}</strong><br>HI: <span style="color:${p.status.color}">${p.hi.toFixed(1)}°C</span> — ${p.status.label}`;
+      cvs.style.cursor = 'pointer';
+    } else {
+      tooltip.style.display = 'none';
+      cvs.style.cursor = 'default';
+    }
+  });
+
+  cvs.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+}
+
+// ============================================
+// RENDER MAP — FIXED: trim textContent, proper positioning
 // ============================================
 function renderMap() {
   const box = $('#map-markers');
@@ -444,44 +549,57 @@ function renderMap() {
   box.innerHTML = LOCATIONS.map(loc => {
     const r = latest[loc.id];
     const st = r ? getStatus(r.hi) : {lvl:'unknown',color:'#666',label:'No Data'};
-    return `<div class="map-pin ${st.lvl}" style="left:${loc.x}%;top:${loc.y}%" title="${esc(loc.num)}. ${esc(loc.name)}${r?' — '+r.hi+'°C':''}">${loc.num}</div>`;
+    return `<div class="map-pin ${st.lvl}" style="left:${loc.x}%;top:${loc.y}%" title="${esc(loc.num)}. ${esc(loc.name)}${r?' — '+r.hi+'°C':''}" data-num="${esc(loc.num)}">${loc.num}</div>`;
   }).join('');
 
-  // click handlers
   $$('.map-pin').forEach(pin => {
     pin.addEventListener('click', () => {
-      const num = pin.textContent;
-      const loc = LOCATIONS.find(l => String(l.num)===num);
-      if (loc) { $('#loc-select').value = loc.id; goTab('monitor'); toast(`${loc.name} selected`,'inf'); }
+      const num = pin.textContent.trim();
+      const loc = LOCATIONS.find(l => String(l.num) === num);
+      if (loc) {
+        $('#loc-select').value = loc.id;
+        goTab('monitor');
+        toast(`${loc.name} selected`, 'inf');
+      }
     });
   });
 }
 
 // ============================================
-// FIREBASE
+// FIREBASE — FIXED: poll /sensor_data.json to match Python script
 // ============================================
 async function pollFB() {
   if (!settings.fbUrl) return;
   try {
-    const url = settings.fbUrl.replace(/\/$/,'') + '/readings/latest.json';
+    // Match the Python bridge endpoint
+    const url = settings.fbUrl.replace(/\/$/,'') + '/sensor_data.json';
     const res = await fetch(url, {cache:'no-store'});
     if (!res.ok) throw new Error('HTTP '+res.status);
     const data = await res.json();
     if (data && typeof data.temperature==='number' && typeof data.humidity==='number') {
-      const t=parseFloat(data.temperature), h=parseFloat(data.humidity);
-      $('#temp-in').value = t.toFixed(1); $('#hum-in').value = h.toFixed(0);
-      if (!fbLast || Math.abs(fbLast.t-t)>.3 || Math.abs(fbLast.h-h)>.5) {
-        fbLast = {t,h};
-        const loc = $('#loc-select').value;
-        if (loc) { const hi=calcHI(t,h); if(hi!==null) addReading(loc,t,h,hi); }
-        const st = getStatus(calcHI(t,h)||0);
-        drawGauge(calcHI(t,h)); $('#g-val').textContent = (calcHI(t,h)||0).toFixed(1);
-        $('#g-status').textContent = st.label; $('#g-status').style.color = st.color;
-        updateConn(true,'Cloud Live');
+      const t = parseFloat(data.temperature), h = parseFloat(data.humidity);
+      $('#temp-in').value = t.toFixed(1);
+      $('#hum-in').value = h.toFixed(0);
+
+      // Only update gauge + status, do NOT auto-record to wrong location
+      const hi = calcHI(t, h);
+      if (hi !== null) {
+        fbLast = {t, h, hi};
+        const st = getStatus(hi);
+        drawGauge(hi);
+        $('#g-val').textContent = hi.toFixed(1);
+        $('#g-status').textContent = st.label + ' (Cloud)';
+        $('#g-status').style.color = st.color;
+        $('#g-status').style.borderColor = st.color + '40';
+        $('#g-status').style.background = st.color + '15';
+        updateConn(true, 'Cloud Live');
+        // Pulse the calculate button to show new data is ready
+        $('#btn-calc').classList.add('pulse-btn');
+        setTimeout(() => $('#btn-calc').classList.remove('pulse-btn'), 2000);
       }
     }
   } catch(e) {
-    updateConn(false,'Cloud Error');
+    updateConn(false, 'Cloud Error');
   }
 }
 
@@ -504,11 +622,24 @@ async function pollBridge() {
     if (!res.ok) throw new Error('HTTP '+res.status);
     const data = await res.json();
     if (data.temperature!==undefined && data.humidity!==undefined) {
-      $('#temp-in').value = parseFloat(data.temperature).toFixed(1);
-      $('#hum-in').value = parseFloat(data.humidity).toFixed(0);
-      updateConn(true,'Bridge Live');
+      const t = parseFloat(data.temperature), h = parseFloat(data.humidity);
+      $('#temp-in').value = t.toFixed(1);
+      $('#hum-in').value = h.toFixed(0);
+      const hi = calcHI(t, h);
+      if (hi !== null) {
+        const st = getStatus(hi);
+        drawGauge(hi);
+        $('#g-val').textContent = hi.toFixed(1);
+        $('#g-status').textContent = st.label + ' (Bridge)';
+        $('#g-status').style.color = st.color;
+        $('#g-status').style.borderColor = st.color + '40';
+        $('#g-status').style.background = st.color + '15';
+        updateConn(true, 'Bridge Live');
+        $('#btn-calc').classList.add('pulse-btn');
+        setTimeout(() => $('#btn-calc').classList.remove('pulse-btn'), 2000);
+      }
     }
-  } catch(e) { updateConn(false,'Bridge Error'); }
+  } catch(e) { updateConn(false, 'Bridge Error'); }
 }
 function startBridge() {
   if (brTimer) clearInterval(brTimer);
@@ -547,8 +678,12 @@ function init() {
   if ($('#tog-cloud')) $('#tog-cloud').checked = settings.cloud||false;
   if (settings.cloud && settings.fbUrl) { $('#cloud-box').classList.remove('hidden'); startFB(); }
 
-  // events
-  $$('.nav-btn').forEach(b => b.addEventListener('click', () => goTab(b.dataset.tab)));
+  // events — FIXED: touch + click for tabs
+  $$('.nav-btn').forEach(b => {
+    const handler = (e) => { e.preventDefault(); goTab(b.dataset.tab); };
+    b.addEventListener('click', handler);
+    b.addEventListener('touchend', handler);
+  });
 
   $('#btn-calc').addEventListener('click', doCalc);
   $('#btn-auto').addEventListener('click', doAuto);
@@ -590,6 +725,7 @@ function init() {
   renderDash();
   renderHist();
   renderMap();
+  initForecastInteraction();
 
   // remove loader
   setTimeout(() => {
