@@ -35,407 +35,430 @@
     <div class="particle p1"></div>
     <div class="particle p2"></div>
     <div class="particle p3"></div>
-    <div class="particle p4"></div>
-    <div class="particle p5"></div>
     <div class="noise-overlay"></div>
   </div>
 
   <!-- Loading Screen -->
-  <div id="loader">
+  <div id="loading-screen">
     <div class="loader-visual">
       <img src="assets/app-logo.png" alt="SchoolHeat" class="loader-logo" id="loader-logo">
       <div class="loader-ring"></div>
     </div>
     <div class="loader-brand">SchoolHeat</div>
     <div class="loader-sub">TUKLAS 2026 • Mahaplag NHS</div>
-    <div class="loader-bar"><i id="loader-progress"></i></div>
+    <div class="loader-bar"><div class="loader-bar-fill"></div></div>
   </div>
 
-  <main id="app">
-    <!-- Navigation -->
-    <nav class="topnav" id="topnav">
-      <div class="nav-brand">
-        <img src="assets/app-logo.png" alt="SchoolHeat" class="nav-logo">
-        <div class="nav-brand-text">
-          <span class="nav-title">SchoolHeat</span>
-          <span class="nav-sub">Ultimate</span>
+  <!-- App Container -->
+  <div id="app" class="hidden">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-content">
+        <div class="header-brand">
+          <img src="assets/app-logo.png" alt="SchoolHeat" class="header-logo">
+          <div class="brand-text">
+            <h1>SchoolHeat</h1>
+            <span class="brand-tag">TUKLAS 2026 • MNHS</span>
+          </div>
         </div>
-      </div>
-      <div class="nav-meta">
-        <div class="live-pill">
-          <span class="live-dot"></span>
-          <span class="live-time" id="live-time">--:--:--</span>
-        </div>
-        <button class="btn-icon" id="btn-settings" aria-label="Settings">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
-        </button>
-      </div>
-    </nav>
-
-    <!-- Hero Section -->
-    <section class="hero" id="section-monitor">
-      <div class="hero-left">
-        <div class="hero-badge" id="hero-badge">
-          <span class="badge-dot" id="badge-dot"></span>
-          <span id="badge-text">Ready</span>
-        </div>
-        <h1 class="hero-title">Heat Index<br>Monitor</h1>
-        <p class="hero-desc">Real-time temperature & humidity analysis with intelligent validation across 30 campus locations.</p>
-
-        <div class="hero-stats" id="hero-stats">
-          <div class="hstat"><span class="hstat-val" id="hstat-avg">--</span><span class="hstat-label">Avg HI</span></div>
-          <div class="hstat"><span class="hstat-val" id="hstat-peak">--</span><span class="hstat-label">Peak</span></div>
-          <div class="hstat"><span class="hstat-val" id="hstat-total">0</span><span class="hstat-label">Readings</span></div>
-        </div>
-      </div>
-
-      <div class="hero-right">
-        <div class="gauge-wrap">
-          <svg class="gauge-svg" viewBox="0 0 200 120">
-            <defs>
-              <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stop-color="#10b981"/>
-                <stop offset="35%" stop-color="#f59e0b"/>
-                <stop offset="65%" stop-color="#f97316"/>
-                <stop offset="100%" stop-color="#ef4444"/>
-              </linearGradient>
-              <filter id="gaugeGlow" x="-20%" y="-20%" width="140%" height="140%">
-                <feGaussianBlur stdDeviation="3" result="blur"/>
-                <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-              </filter>
-            </defs>
-            <path d="M20 100 A80 80 0 0 1 180 100" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="14" stroke-linecap="round"/>
-            <path id="gauge-arc" d="M20 100 A80 80 0 0 1 20 100" fill="none" stroke="url(#gaugeGrad)" stroke-width="14" stroke-linecap="round" filter="url(#gaugeGlow)"/>
-            <text x="100" y="90" text-anchor="middle" fill="#fff" font-size="32" font-weight="800" font-family="JetBrains Mono, monospace" id="gauge-value">--</text>
-            <text x="100" y="112" text-anchor="middle" fill="rgba(255,255,255,0.35)" font-size="9" font-weight="600" letter-spacing="3" text-transform="uppercase">HEAT INDEX °C</text>
-          </svg>
-          <div class="gauge-labels">
-            <span>20°</span><span>35°</span><span>50°</span>
+        <div class="header-status">
+          <div class="status-badge" id="connection-status">
+            <span class="status-dot"></span>
+            <span class="status-text">Offline</span>
           </div>
         </div>
       </div>
-    </section>
+    </header>
 
-    <!-- Input Panel -->
-    <section class="panel input-panel" id="input-panel">
-      <div class="panel-header">
-        <div class="panel-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-        </div>
-        <h2>New Reading</h2>
-      </div>
-
-      <form class="reading-form" id="reading-form" autocomplete="off">
-        <div class="form-grid">
-          <div class="field-group">
-            <label for="loc-input">Location</label>
-            <div class="input-wrap">
-              <input type="text" id="loc-input" list="loc-list" placeholder="Select or type location" required>
-              <datalist id="loc-list"></datalist>
-              <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-            </div>
-          </div>
-
-          <div class="field-group">
-            <label for="temp-input">Temperature <span class="unit">°C</span></label>
-            <div class="input-wrap">
-              <input type="number" id="temp-input" step="0.1" min="-10" max="60" placeholder="0.0" required>
-              <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0Z"/></svg>
-            </div>
-            <div class="range-hint">Range: -10 to 60°C</div>
-          </div>
-
-          <div class="field-group">
-            <label for="hum-input">Relative Humidity <span class="unit">%</span></label>
-            <div class="input-wrap">
-              <input type="number" id="hum-input" step="0.1" min="0" max="100" placeholder="0" required>
-              <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0L12 2.69Z"/></svg>
-            </div>
-            <div class="range-hint">Range: 0–100%</div>
-          </div>
-        </div>
-
-        <div class="form-actions">
-          <button type="submit" class="btn-primary" id="btn-submit">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-            <span>Record Reading</span>
-          </button>
-          <button type="button" class="btn-ghost" id="btn-random">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l5 5M4 4l5 5"/></svg>
-            Demo
-          </button>
-        </div>
-      </form>
-
-      <!-- Live Preview -->
-      <div class="preview-card" id="preview-card" style="display:none">
-        <div class="preview-header">
-          <span class="preview-label">Calculated Heat Index</span>
-          <span class="preview-badge" id="preview-badge">Safe</span>
-        </div>
-        <div class="preview-value" id="preview-value">--</div>
-        <div class="preview-bar-wrap">
-          <div class="preview-bar">
-            <div class="preview-bar-fill" id="preview-bar-fill"></div>
-          </div>
-          <div class="preview-bar-labels">
-            <span>Safe</span><span>Caution</span><span>Danger</span><span>Extreme</span>
-          </div>
-        </div>
-        <div class="preview-meta" id="preview-meta">Enter values to calculate</div>
-      </div>
-    </section>
-
-    <!-- Dashboard -->
-    <section class="panel dashboard-panel" id="section-dashboard">
-      <div class="panel-header">
-        <div class="panel-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-        </div>
-        <h2>Campus Dashboard</h2>
-        <span class="panel-badge">30 Locations</span>
-      </div>
-
-      <div class="dash-grid" id="dash-grid">
-        <div class="dash-card safe" data-status="safe">
-          <div class="dash-card-glow"></div>
-          <div class="dash-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-          </div>
-          <div class="dash-count" id="count-safe">0</div>
-          <div class="dash-label">Safe</div>
-          <div class="dash-sublabel">Below 27°C</div>
-        </div>
-
-        <div class="dash-card caution" data-status="caution">
-          <div class="dash-card-glow"></div>
-          <div class="dash-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-          </div>
-          <div class="dash-count" id="count-caution">0</div>
-          <div class="dash-label">Caution</div>
-          <div class="dash-sublabel">27 – 32°C</div>
-        </div>
-
-        <div class="dash-card danger" data-status="danger">
-          <div class="dash-card-glow"></div>
-          <div class="dash-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8Z"/></svg>
-          </div>
-          <div class="dash-count" id="count-danger">0</div>
-          <div class="dash-label">Danger</div>
-          <div class="dash-sublabel">32 – 41°C</div>
-        </div>
-
-        <div class="dash-card extreme" data-status="extreme">
-          <div class="dash-card-glow"></div>
-          <div class="dash-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-          </div>
-          <div class="dash-count" id="count-extreme">0</div>
-          <div class="dash-label">Extreme</div>
-          <div class="dash-sublabel">Above 41°C</div>
-        </div>
-      </div>
-
-      <div class="dash-summary" id="dash-summary">
-        <div class="sum-item"><span class="sum-label">Total Readings</span><span class="sum-val" id="sum-total">0</span></div>
-        <div class="sum-item"><span class="sum-label">Avg Heat Index</span><span class="sum-val" id="sum-avg">--</span></div>
-        <div class="sum-item"><span class="sum-label">Peak Today</span><span class="sum-val" id="sum-peak">--</span></div>
-        <div class="sum-item"><span class="sum-label">Last Update</span><span class="sum-val" id="sum-last">--</span></div>
-      </div>
-    </section>
-
-    <!-- Activity -->
-    <section class="panel activity-panel" id="section-activity">
-      <div class="panel-header">
-        <div class="panel-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-        </div>
-        <h2>Recent Activity</h2>
-        <div class="panel-actions">
-          <button class="btn-text" id="btn-clear-recent">Clear All</button>
-        </div>
-      </div>
-      <div class="activity-list" id="activity-list">
-        <div class="activity-empty">
-          <div class="empty-icon">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"/></svg>
-          </div>
-          <p>No readings yet. Add your first measurement above.</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- History -->
-    <section class="panel history-panel" id="section-history">
-      <div class="panel-header">
-        <div class="panel-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-        </div>
-        <h2>Reading History</h2>
-        <div class="panel-actions">
-          <div class="search-box">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-            <input type="text" id="history-search" placeholder="Search location...">
-          </div>
-          <button class="btn-text" id="btn-export">Export CSV</button>
-        </div>
-      </div>
-
-      <div class="table-wrap">
-        <table class="data-table" id="history-table">
-          <thead>
-            <tr>
-              <th>Time</th>
-              <th>Location</th>
-              <th>Temp</th>
-              <th>Hum</th>
-              <th>HI</th>
-              <th>Status</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody id="history-tbody">
-            <tr class="table-empty"><td colspan="7">
-              <div class="empty-state">
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"/></svg>
-                <p>No readings recorded yet</p>
-                <span>Go to Monitor to add your first measurement</span>
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- TAB: MONITOR -->
+      <section id="tab-monitor" class="tab-panel active">
+        <div class="monitor-hero">
+          <div class="hero-glow"></div>
+          <div class="monitor-card">
+            <div class="card-header">
+              <span class="card-label">Live Heat Index Monitor</span>
+              <div class="live-indicator">
+                <span class="live-pulse"></span>
+                <span>LIVE</span>
               </div>
-            </td></tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
+            </div>
 
-    <!-- Forecast -->
-    <section class="panel forecast-panel" id="section-forecast">
-      <div class="panel-header">
-        <div class="panel-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h10M9 4v16M22 12h-4M17 4v16"/></svg>
-        </div>
-        <h2>7-Day Forecast</h2>
-        <span class="panel-badge" id="forecast-badge">AI Predicted</span>
-      </div>
-      <div class="chart-container" id="chart-container">
-        <canvas id="forecast-chart"></canvas>
-        <div class="chart-fallback" id="chart-fallback">
-          <div class="empty-state">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
-            <p>Not enough data for insights</p>
-            <span>Record at least 3 days of readings to generate predictions</span>
+            <div class="gauge-container">
+              <canvas id="heatGauge" width="280" height="280"></canvas>
+              <div class="gauge-value">
+                <span id="gauge-number">--</span>
+                <span class="gauge-unit">°C</span>
+              </div>
+              <div class="gauge-status" id="gauge-status">Ready</div>
+            </div>
+
+            <div class="input-grid">
+              <div class="input-group">
+                <label>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+                  Location
+                </label>
+                <select id="location-select">
+                  <option value="">Select Location...</option>
+                  <option value="Front Gate">Front Gate</option>
+                  <option value="Quadrangle">Quadrangle</option>
+                  <option value="Covered Walkway">Covered Walkway</option>
+                  <option value="Classroom, SBP4BE Building AusAID">Classroom, SBP4BE Building AusAID</option>
+                  <option value="School Clinic">School Clinic</option>
+                  <option value="Principal's Office">Principal's Office</option>
+                  <option value="Faculty Room">Faculty Room</option>
+                  <option value="Library">Library</option>
+                  <option value="Science Lab">Science Lab</option>
+                  <option value="Computer Lab">Computer Lab</option>
+                  <option value="Canteen">Canteen</option>
+                  <option value="Gymnasium">Gymnasium</option>
+                  <option value="Auditorium">Auditorium</option>
+                  <option value="TLE Workshop">TLE Workshop</option>
+                  <option value="AVR Room">AVR Room</option>
+                  <option value="Guidance Office">Guidance Office</option>
+                  <option value="Registrar Office">Registrar Office</option>
+                  <option value="Supply Room">Supply Room</option>
+                  <option value="Boys Comfort Room">Boys Comfort Room</option>
+                  <option value="Girls Comfort Room">Girls Comfort Room</option>
+                  <option value="Open Covered Court">Open Covered Court</option>
+                  <option value="Flag Pole Area">Flag Pole Area</option>
+                  <option value="Parking Area">Parking Area</option>
+                  <option value="Garden Area">Garden Area</option>
+                  <option value="Basketball Court">Basketball Court</option>
+                  <option value="Volleyball Court">Volleyball Court</option>
+                  <option value="Water Station">Water Station</option>
+                  <option value="Waiting Shed">Waiting Shed</option>
+                  <option value="Perimeter Fence">Perimeter Fence</option>
+                </select>
+              </div>
+              <div class="input-row">
+                <div class="input-group">
+                  <label>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></svg>
+                    Temperature
+                  </label>
+                  <div class="input-with-unit">
+                    <input type="number" id="temp-input" placeholder="0.0" step="0.1" min="0" max="60">
+                    <span class="unit">°C</span>
+                  </div>
+                </div>
+                <div class="input-group">
+                  <label>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
+                    Humidity
+                  </label>
+                  <div class="input-with-unit">
+                    <input type="number" id="humidity-input" placeholder="0" step="1" min="0" max="100">
+                    <span class="unit">%</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="action-buttons">
+              <button id="btn-calculate" class="btn-primary">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                Calculate Heat Index
+              </button>
+              <button id="btn-auto-read" class="btn-secondary">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                Auto-Read Arduino
+              </button>
+            </div>
+
+            <!-- Auto Read Overlay -->
+            <div class="auto-read-overlay hidden" id="auto-read-overlay">
+              <div class="auto-read-visual">
+                <div class="sensor-wave"></div>
+                <div class="sensor-wave"></div>
+                <div class="sensor-wave"></div>
+                <div class="sensor-core">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></svg>
+                </div>
+              </div>
+              <div class="auto-read-text">Reading Sensor...</div>
+              <div class="auto-read-sub">DHT22 • Arduino Uno</div>
+            </div>
+
+            <div class="result-panel hidden" id="result-panel">
+              <div class="result-header">
+                <div class="result-icon" id="result-icon">🌡️</div>
+                <div class="result-title">
+                  <h3 id="result-status">Status</h3>
+                  <p id="result-advice">Advice text here</p>
+                </div>
+              </div>
+              <div class="result-metrics">
+                <div class="metric">
+                  <span class="metric-label">Heat Index</span>
+                  <span class="metric-value" id="result-hi">--</span>
+                  <span class="metric-unit">°C</span>
+                </div>
+                <div class="metric">
+                  <span class="metric-label">Temperature</span>
+                  <span class="metric-value" id="result-temp">--</span>
+                  <span class="metric-unit">°C</span>
+                </div>
+                <div class="metric">
+                  <span class="metric-label">Humidity</span>
+                  <span class="metric-value" id="result-humidity">--</span>
+                  <span class="metric-unit">%</span>
+                </div>
+              </div>
+              <div class="result-time" id="result-time"></div>
+            </div>
           </div>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <!-- Campus Map -->
-    <section class="panel map-panel" id="section-map">
-      <div class="panel-header">
-        <div class="panel-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 21 18 21 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
+      <!-- TAB: DASHBOARD -->
+      <section id="tab-dashboard" class="tab-panel">
+        <div class="dashboard-header">
+          <h2>Campus Overview</h2>
+          <p>Real-time heat status across all monitored locations</p>
         </div>
-        <h2>Campus Hazard Map</h2>
-        <div class="legend">
-          <span class="legend-dot safe"></span>Safe
-          <span class="legend-dot caution"></span>Caution
-          <span class="legend-dot danger"></span>Danger
-          <span class="legend-dot extreme"></span>Extreme
-          <span class="legend-dot nodata"></span>No Data
-        </div>
-      </div>
 
-      <div class="map-wrap">
-        <div class="campus-map" id="campus-map">
-          <img src="assets/campus-map.jpg" alt="Campus Map" loading="lazy" decoding="async" id="map-image">
-          <div class="map-overlay"></div>
+        <div class="stats-grid">
+          <div class="stat-card safe">
+            <div class="stat-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            </div>
+            <div class="stat-value" id="stat-safe">0</div>
+            <div class="stat-label">Safe Zones</div>
+          </div>
+          <div class="stat-card caution">
+            <div class="stat-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </div>
+            <div class="stat-value" id="stat-caution">0</div>
+            <div class="stat-label">Caution</div>
+          </div>
+          <div class="stat-card danger">
+            <div class="stat-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8Z"/></svg>
+            </div>
+            <div class="stat-value" id="stat-danger">0</div>
+            <div class="stat-label">Danger</div>
+          </div>
+          <div class="stat-card total">
+            <div class="stat-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+            </div>
+            <div class="stat-value" id="stat-total">0</div>
+            <div class="stat-label">Total Readings</div>
+          </div>
         </div>
-        <div class="map-locations" id="map-locations"></div>
-      </div>
-    </section>
 
-    <!-- Footer -->
+        <div class="locations-panel">
+          <div class="panel-header">
+            <h3>All Locations</h3>
+            <div class="filter-tabs">
+              <button class="filter-btn active" data-filter="all">All</button>
+              <button class="filter-btn" data-filter="safe">Safe</button>
+              <button class="filter-btn" data-filter="caution">Caution</button>
+              <button class="filter-btn" data-filter="danger">Danger</button>
+            </div>
+          </div>
+          <div class="locations-list" id="locations-list"></div>
+        </div>
+      </section>
+
+      <!-- TAB: HISTORY -->
+      <section id="tab-history" class="tab-panel">
+        <div class="history-header">
+          <h2>Reading History</h2>
+          <p>All recorded heat index measurements</p>
+        </div>
+        <div class="history-table-container">
+          <table class="history-table" id="history-table">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Location</th>
+                <th>Temp</th>
+                <th>Humidity</th>
+                <th>Heat Index</th>
+                <th>Status</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="history-tbody"></tbody>
+          </table>
+          <div class="empty-state hidden" id="history-empty">
+            <div class="empty-icon">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"/></svg>
+            </div>
+            <p>No readings recorded yet</p>
+            <span>Go to Monitor tab to add your first reading</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB: PREDICTION -->
+      <section id="tab-prediction" class="tab-panel">
+        <div class="prediction-header">
+          <h2>7-Day Forecast</h2>
+          <p>Heat index prediction based on historical patterns</p>
+        </div>
+        <div class="prediction-chart-container">
+          <canvas id="predictionChart" width="600" height="300"></canvas>
+        </div>
+        <div class="prediction-cards" id="prediction-cards"></div>
+      </section>
+
+      <!-- TAB: MAP -->
+      <section id="tab-map" class="tab-panel">
+        <div class="map-header">
+          <h2>Campus Hazard Map</h2>
+          <p>Visual heat distribution across campus</p>
+        </div>
+        <div class="map-container">
+          <div class="campus-map-wrap" id="campus-map-wrap">
+            <img src="assets/campus-map.jpg" alt="Campus Map" loading="lazy" decoding="async" id="campus-map-img">
+            <div class="map-overlay"></div>
+            <div class="map-pins" id="map-pins"></div>
+          </div>
+          <div class="map-legend-bar">
+            <div class="legend-item"><span class="legend-dot safe"></span> Safe (&lt;27°C)</div>
+            <div class="legend-item"><span class="legend-dot caution"></span> Caution (27-32°C)</div>
+            <div class="legend-item"><span class="legend-dot danger"></span> Danger (32-41°C)</div>
+            <div class="legend-item"><span class="legend-dot extreme"></span> Extreme (&gt;41°C)</div>
+            <div class="legend-item"><span class="legend-dot unknown"></span> No Data</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB: SETTINGS -->
+      <section id="tab-settings" class="tab-panel">
+        <div class="settings-header">
+          <h2>Settings</h2>
+          <p>Configure connections and preferences</p>
+        </div>
+
+        <div class="settings-card">
+          <div class="settings-section">
+            <div class="section-icon cloud">☁️</div>
+            <div class="section-content">
+              <h3>Cloud Mode (Firebase)</h3>
+              <p>Get live data from anywhere. Judges just open the URL!</p>
+              <div class="toggle-row">
+                <label class="toggle-switch">
+                  <input type="checkbox" id="cloud-toggle">
+                  <span class="toggle-slider"></span>
+                </label>
+                <span class="toggle-label">Enable Cloud Mode</span>
+              </div>
+              <div class="input-group cloud-input hidden" id="cloud-input-group">
+                <label>Firebase Database URL</label>
+                <input type="text" id="firebase-url" placeholder="https://your-project.firebaseio.com">
+                <button id="btn-connect-cloud" class="btn-small">Connect</button>
+              </div>
+              <div class="connection-status" id="cloud-status">Not connected</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-card">
+          <div class="settings-section">
+            <div class="section-icon local">🔌</div>
+            <div class="section-content">
+              <h3>Local Bridge Server</h3>
+              <p>Direct connection to Arduino on same network</p>
+              <div class="input-group">
+                <label>Server URL</label>
+                <input type="text" id="local-url" placeholder="http://192.168.1.50:5000">
+                <button id="btn-connect-local" class="btn-small">Connect</button>
+              </div>
+              <div class="connection-status" id="local-status">Not connected</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-card">
+          <div class="settings-section">
+            <div class="section-icon alert">🔔</div>
+            <div class="section-content">
+              <h3>Alert Settings</h3>
+              <div class="input-group">
+                <label>WhatsApp Alert Number</label>
+                <input type="tel" id="alert-number" placeholder="+63XXXXXXXXXX">
+              </div>
+              <div class="input-group">
+                <label>Auto-Alert Threshold (°C)</label>
+                <input type="number" id="alert-threshold" value="41" min="30" max="60">
+              </div>
+              <div class="toggle-row">
+                <label class="toggle-switch">
+                  <input type="checkbox" id="alert-toggle">
+                  <span class="toggle-slider"></span>
+                </label>
+                <span class="toggle-label">Enable Auto-Alerts</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-card">
+          <div class="settings-section">
+            <div class="section-icon info">ℹ️</div>
+            <div class="section-content">
+              <h3>About</h3>
+              <div class="about-info">
+                <p><strong>Version:</strong> 3.0 — TUKLAS Final</p>
+                <p><strong>School:</strong> Mahaplag National High School</p>
+                <p><strong>Features:</strong> Firebase Cloud, PWA, Arduino Bridge, 7-Day Prediction, Hazard Map</p>
+                <p><strong>Built for:</strong> TUKLAS 2026 Competition</p>
+              </div>
+              <button id="btn-clear-data" class="btn-danger">Clear All Data</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer with School Seal -->
     <footer class="app-footer">
-      <div class="footer-top">
-        <img src="assets/school-logo.png" alt="Mahaplag NHS" class="footer-seal">
-        <div class="footer-brand">
-          <span class="footer-title">SchoolHeat Ultimate</span>
-          <span class="footer-div">•</span>
-          <span class="footer-sub">TUKLAS 2026</span>
-        </div>
-      </div>
-      <div class="footer-meta">
-        <span>Mahaplag National High School</span>
-        <span class="footer-div">•</span>
-        <span>30 Monitored Buildings</span>
-        <span class="footer-div">•</span>
-        <span id="footer-version">v2.0</span>
+      <img src="assets/school-logo.png" alt="Mahaplag NHS" class="footer-seal">
+      <div class="footer-text">
+        <span class="footer-title">Mahaplag National High School</span>
+        <span class="footer-sub">TUKLAS 2026 • SchoolHeat Ultimate</span>
       </div>
     </footer>
-  </main>
 
-  <!-- Toast Container -->
-  <div class="toast-container" id="toast-container"></div>
+    <!-- Toast Notifications -->
+    <div id="toast-container"></div>
 
-  <!-- Settings Modal -->
-  <div class="modal-backdrop" id="modal-settings" style="display:none">
-    <div class="modal">
-      <div class="modal-header">
-        <h3>Settings</h3>
-        <button class="btn-icon modal-close" id="btn-close-settings">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
-        </button>
-      </div>
-      <div class="modal-body">
-        <div class="settings-group">
-          <h4>Calibration</h4>
-          <div class="setting-row">
-            <label>Temp Offset (°C)</label>
-            <input type="number" id="set-temp-offset" step="0.1" value="0">
-          </div>
-          <div class="setting-row">
-            <label>Humidity Offset (%)</label>
-            <input type="number" id="set-hum-offset" step="0.1" value="0">
-          </div>
-        </div>
-        <div class="settings-group">
-          <h4>Alerts</h4>
-          <div class="setting-row">
-            <label>Threshold (°C)</label>
-            <input type="number" id="set-threshold" value="32">
-          </div>
-          <div class="setting-row">
-            <label>Cooldown (min)</label>
-            <input type="number" id="set-cooldown" value="5">
-          </div>
-        </div>
-        <div class="settings-group">
-          <h4>Data</h4>
-          <div class="setting-actions">
-            <button class="btn-ghost" id="btn-import">Import JSON</button>
-            <button class="btn-ghost" id="btn-export-json">Export JSON</button>
-            <button class="btn-danger" id="btn-reset">Reset All Data</button>
-          </div>
-        </div>
-        <div class="settings-group">
-          <h4>About</h4>
-          <div class="about-grid">
-            <div class="about-item"><span>School</span><strong>Mahaplag National High School</strong></div>
-            <div class="about-item"><span>Competition</span><strong>TUKLAS 2026</strong></div>
-            <div class="about-item"><span>Locations</span><strong>30 Monitored Buildings</strong></div>
-            <div class="about-item"><span>Formula</span><strong>Steadman-Rothfusz (°C)</strong></div>
-            <div class="about-item"><span>Features</span><strong>PWA, Forecast, Map, Validation</strong></div>
-            <div class="about-item"><span>Storage</span><strong>Local + Auto-Sync</strong></div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <!-- Bottom Navigation -->
+    <nav class="bottom-nav">
+      <button class="nav-btn active" data-tab="monitor">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/><circle cx="12" cy="12" r="4"/></svg>
+        <span>Monitor</span>
+      </button>
+      <button class="nav-btn" data-tab="dashboard">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        <span>Dashboard</span>
+      </button>
+      <button class="nav-btn" data-tab="history">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        <span>History</span>
+      </button>
+      <button class="nav-btn" data-tab="prediction">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+        <span>Forecast</span>
+      </button>
+      <button class="nav-btn" data-tab="map">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="1 6 1 22 8 18 16 22 21 18 21 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
+        <span>Map</span>
+      </button>
+      <button class="nav-btn" data-tab="settings">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
+        <span>Settings</span>
+      </button>
+    </nav>
   </div>
 
-  <input type="file" id="file-import" accept=".json" style="display:none">
-
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
   <script src="script.js" defer></script>
 </body>
 </html>
