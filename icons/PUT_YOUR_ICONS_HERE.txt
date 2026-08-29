@@ -1,8 +1,0 @@
-Add these files to this folder:
-
-  icon-192.png          - App icon, 192x192 pixels
-  icon-512.png          - App icon, 512x512 pixels
-  icon-192-maskable.png - Maskable icon variant (optional)
-  icon-512-maskable.png - Maskable icon variant (optional)
-
-The app will work without these, but PyInstaller may show a warning.
