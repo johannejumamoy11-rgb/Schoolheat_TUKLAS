@@ -1,441 +1,656 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <meta name="theme-color" content="#0a0a14">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="description" content="SchoolHeat Ultimate — Real-time Heat Index Monitoring for Mahaplag National High School">
-  <meta name="mobile-web-app-capable" content="yes">
-  <title>SchoolHeat Ultimate — TUKLAS 2026</title>
+/* ===== SCHOOLHEAT ULTIMATE v2.0 — TUKLAS 2026 ===== */
+/* Optimized, enhanced, aesthetic, impactful */
 
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+(function() {
+'use strict';
 
-  <link rel="stylesheet" href="style.css" media="print" onload="this.media='all'">
-  <noscript><link rel="stylesheet" href="style.css"></noscript>
+// ============================================
+// CONFIG
+// ============================================
+const STORE_KEY = 'sh_v2_data';
+const SETT_KEY = 'sh_v2_settings';
+const MAX_READINGS = 500;
 
-  <link rel="manifest" href="manifest.json">
-  <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="icon" type="image/png" href="icons/icon-192.png">
-<base target="_blank">
-</head>
-<body>
-  <!-- Campus Background -->
-  <div class="campus-bg" aria-hidden="true">
-    <img src="assets/school-bg-mobile.jpg" alt="" fetchpriority="high" decoding="async">
-    <div class="campus-bg-overlay"></div>
-    <div class="campus-bg-vignette"></div>
-  </div>
+const LOCATIONS = [
+  'Main Gate','Guard House',"Principal's Office",'Faculty Room','Library',
+  'Science Lab','Computer Lab','AVR / Auditorium','Canteen','Clinic',
+  "Boys' Comfort Room","Girls' Comfort Room",'Water Station','Parking Area','Flag Pole',
+  'Basketball Court','Volleyball Court','Soccer Field','Grandstand','Gymnasium',
+  'Building A - Room 1','Building A - Room 2','Building A - Room 3',
+  'Building B - Room 1','Building B - Room 2','Building B - Room 3',
+  'Building C - Room 1','Building C - Room 2','Building C - Room 3',
+  'TLE Workshop'
+];
 
-  <!-- Ambient Particles -->
-  <div class="ambient-particles" aria-hidden="true">
-    <div class="particle p1"></div>
-    <div class="particle p2"></div>
-    <div class="particle p3"></div>
-    <div class="particle p4"></div>
-    <div class="particle p5"></div>
-    <div class="noise-overlay"></div>
-  </div>
+const STATUS_LEVELS = [
+  { key:'safe',    label:'Safe',    max:27,  color:'#10b981' },
+  { key:'caution', label:'Caution', max:32,  color:'#f59e0b' },
+  { key:'danger',  label:'Danger',  max:41,  color:'#f97316' },
+  { key:'extreme', label:'Extreme', max:999, color:'#ef4444' }
+];
 
-  <!-- Loading Screen -->
-  <div id="loader">
-    <div class="loader-visual">
-      <img src="assets/app-logo.png" alt="SchoolHeat" class="loader-logo" id="loader-logo">
-      <div class="loader-ring"></div>
-    </div>
-    <div class="loader-brand">SchoolHeat</div>
-    <div class="loader-sub">TUKLAS 2026 • Mahaplag NHS</div>
-    <div class="loader-bar"><i id="loader-progress"></i></div>
-  </div>
+// ============================================
+// STATE
+// ============================================
+const state = {
+  readings: [],
+  settings: { tempOffset:0, humOffset:0, threshold:32, cooldown:5, smsNumber:'' },
+  chart: null,
+  chartLoaded: false,
+  lastAlert: {}
+};
 
-  <main id="app">
-    <!-- Navigation -->
-    <nav class="topnav" id="topnav">
-      <div class="nav-brand">
-        <img src="assets/app-logo.png" alt="SchoolHeat" class="nav-logo">
-        <div class="nav-brand-text">
-          <span class="nav-title">SchoolHeat</span>
-          <span class="nav-sub">Ultimate</span>
-        </div>
+// ============================================
+// UTILITIES
+// ============================================
+const $ = (sel, el=document) => el.querySelector(sel);
+const $$ = (sel, el=document) => [...el.querySelectorAll(sel)];
+const fmtNum = (n, d=1) => (n===null||n===undefined||isNaN(n)) ? '--' : Number(n).toFixed(d);
+const fmtTime = (d=new Date()) => d.toLocaleTimeString('en-PH', {hour12:false});
+const fmtDateTime = (d) => d.toLocaleString('en-PH', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', hour12:false});
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; };
+
+// ============================================
+// HEAT INDEX (Steadman-Rothfusz)
+// ============================================
+function calcHeatIndex(tc, rh) {
+  const tf = tc * 9/5 + 32;
+  let hi = -42.379 + 2.04901523*tf + 10.14333127*rh
+           - 0.22475541*tf*rh - 6.83783e-3*tf*tf
+           - 5.481717e-2*rh*rh + 1.22874e-3*tf*tf*rh
+           + 8.5282e-4*tf*rh*rh - 1.99e-6*tf*tf*rh*rh;
+  if (rh < 13 && tf >= 80 && tf <= 112) {
+    const adj = ((13-rh)/4) * Math.sqrt((17-Math.abs(tf-95))/17);
+    hi -= adj;
+  }
+  return (hi - 32) * 5/9;
+}
+
+function getStatus(hi) {
+  return STATUS_LEVELS.find(s => hi < s.max) || STATUS_LEVELS[STATUS_LEVELS.length-1];
+}
+
+function getGaugeArc(hi) {
+  const pct = clamp((hi - 20) / 30, 0, 1);
+  const angle = pct * 180;
+  const rad = (angle * Math.PI) / 180;
+  const x = 100 - 80 * Math.cos(rad);
+  const y = 100 - 80 * Math.sin(rad);
+  const large = angle > 180 ? 1 : 0;
+  return `M20 100 A80 80 0 ${large} 1 ${x} ${y}`;
+}
+
+// ============================================
+// STORAGE
+// ============================================
+function loadData() {
+  try {
+    const d = localStorage.getItem(STORE_KEY);
+    if (d) state.readings = JSON.parse(d);
+    const s = localStorage.getItem(SETT_KEY);
+    if (s) state.settings = {...state.settings, ...JSON.parse(s)};
+  } catch(e) { console.warn('Storage load failed', e); }
+}
+function saveData() {
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify(state.readings.slice(-MAX_READINGS)));
+    localStorage.setItem(SETT_KEY, JSON.stringify(state.settings));
+  } catch(e) { console.warn('Storage save failed', e); }
+}
+
+// ============================================
+// TOAST
+// ============================================
+function toast(msg, type='info', duration=3000) {
+  const container = $('#toast-container');
+  const icons = {
+    success: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+    error: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
+    info: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>'
+  };
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.innerHTML = `<div class="toast-icon ${type}">${icons[type]}</div><div>${msg}</div>`;
+  container.appendChild(el);
+  setTimeout(() => {
+    el.classList.add('toast-out');
+    setTimeout(() => el.remove(), 300);
+  }, duration);
+}
+
+// ============================================
+// LOADER
+// ============================================
+function updateLoader(pct) {
+  const bar = $('#loader-progress');
+  if (bar) bar.style.width = pct + '%';
+}
+function hideLoader() {
+  updateLoader(100);
+  setTimeout(() => {
+    $('#loader').classList.add('hide');
+    setTimeout(() => $('#loader').style.display='none', 700);
+  }, 400);
+}
+
+// ============================================
+// CLOCK
+// ============================================
+function startClock() {
+  const el = $('#live-time');
+  const tick = () => { el.textContent = fmtTime(); };
+  tick();
+  setInterval(tick, 1000);
+}
+
+// ============================================
+// FORM & PREVIEW
+// ============================================
+function initForm() {
+  const locInput = $('#loc-input');
+  const tempInput = $('#temp-input');
+  const humInput = $('#hum-input');
+  const previewCard = $('#preview-card');
+  const previewBadge = $('#preview-badge');
+  const previewValue = $('#preview-value');
+  const previewBar = $('#preview-bar-fill');
+  const previewMeta = $('#preview-meta');
+
+  const dl = $('#loc-list');
+  LOCATIONS.forEach(l => { const o=document.createElement('option'); o.value=l; dl.appendChild(o); });
+
+  function updatePreview() {
+    const t = parseFloat(tempInput.value);
+    const h = parseFloat(humInput.value);
+    if (isNaN(t) || isNaN(h)) { previewCard.style.display='none'; return; }
+    const hi = calcHeatIndex(t + state.settings.tempOffset, h + state.settings.humOffset);
+    const st = getStatus(hi);
+    previewCard.style.display='block';
+    previewBadge.textContent = st.label;
+    previewBadge.className = 'preview-badge ' + st.key;
+    previewValue.textContent = fmtNum(hi, 1) + '°C';
+    previewValue.style.color = st.color;
+    const pct = clamp((hi - 20) / 30 * 100, 0, 100);
+    previewBar.style.width = pct + '%';
+    previewBar.style.background = st.color;
+    previewMeta.textContent = `${locInput.value || 'No location'} • ${fmtNum(t,1)}°C / ${fmtNum(h,1)}% RH`;
+  }
+
+  [tempInput, humInput, locInput].forEach(el => el.addEventListener('input', updatePreview));
+
+  $('#reading-form').addEventListener('submit', e => {
+    e.preventDefault();
+    const loc = locInput.value.trim();
+    const t = parseFloat(tempInput.value);
+    const h = parseFloat(humInput.value);
+    if (!loc || isNaN(t) || isNaN(h)) { toast('Please fill all fields', 'error'); return; }
+    if (t < -10 || t > 60) { toast('Temperature out of range', 'error'); return; }
+    if (h < 0 || h > 100) { toast('Humidity out of range', 'error'); return; }
+    addReading({ loc, temp:t, hum:h });
+    e.target.reset();
+    previewCard.style.display = 'none';
+    toast('Reading recorded successfully', 'success');
+  });
+
+  $('#btn-random').addEventListener('click', () => {
+    const loc = LOCATIONS[Math.floor(Math.random() * LOCATIONS.length)];
+    const t = clamp(28 + Math.random() * 14, 20, 50);
+    const h = clamp(50 + Math.random() * 40, 30, 95);
+    locInput.value = loc;
+    tempInput.value = fmtNum(t, 1);
+    humInput.value = fmtNum(h, 1);
+    updatePreview();
+    setTimeout(() => $('#reading-form').dispatchEvent(new Event('submit')), 300);
+  });
+}
+
+// ============================================
+// ADD READING
+// ============================================
+function addReading({ loc, temp, hum }) {
+  const adjT = temp + state.settings.tempOffset;
+  const adjH = hum + state.settings.humOffset;
+  const hi = calcHeatIndex(adjT, adjH);
+  const st = getStatus(hi);
+  const reading = {
+    id: uid(), loc, temp: adjT, hum: adjH, hi, status: st.key,
+    time: new Date().toISOString(), raw: { temp, hum }
+  };
+  state.readings.unshift(reading);
+  if (state.readings.length > MAX_READINGS) state.readings.pop();
+  saveData();
+  renderAll();
+  checkAlert(loc, hi, st);
+}
+
+function checkAlert(loc, hi, st) {
+  if (st.key === 'safe') return;
+  const key = loc + '_' + st.key;
+  const last = state.lastAlert[key] || 0;
+  const cooldown = state.settings.cooldown * 60 * 1000;
+  if (Date.now() - last < cooldown) return;
+  state.lastAlert[key] = Date.now();
+  toast(`${loc}: ${st.label} heat index (${fmtNum(hi,1)}°C)`, st.key==='extreme'?'error':'info', 5000);
+}
+
+// ============================================
+// RENDER: GAUGE & HERO
+// ============================================
+function renderGauge() {
+  const latest = state.readings[0];
+  const hi = latest ? latest.hi : null;
+  const arc = $('#gauge-arc');
+  const val = $('#gauge-value');
+  const badge = $('#hero-badge');
+  const dot = $('#badge-dot');
+  const text = $('#badge-text');
+
+  if (hi !== null && !isNaN(hi)) {
+    arc.setAttribute('d', getGaugeArc(hi));
+    val.textContent = fmtNum(hi, 1);
+    const st = getStatus(hi);
+    val.style.fill = st.color;
+    dot.className = 'badge-dot ' + st.key;
+    text.textContent = st.label;
+    badge.style.borderColor = st.color + '33';
+  } else {
+    arc.setAttribute('d', 'M20 100 A80 80 0 0 1 20 100');
+    val.textContent = '--';
+    dot.className = 'badge-dot';
+    text.textContent = 'Ready';
+    badge.style.borderColor = '';
+  }
+}
+
+function renderHeroStats() {
+  const today = new Date().toDateString();
+  const todayReadings = state.readings.filter(r => new Date(r.time).toDateString() === today);
+  const total = state.readings.length;
+  const avg = total > 0 ? state.readings.reduce((a,r)=>a+r.hi,0)/total : null;
+  const peak = todayReadings.length > 0 ? Math.max(...todayReadings.map(r=>r.hi)) : null;
+  $('#hstat-avg').textContent = fmtNum(avg, 1) + (avg!==null?'°C':'');
+  $('#hstat-peak').textContent = fmtNum(peak, 1) + (peak!==null?'°C':'');
+  $('#hstat-total').textContent = total;
+}
+
+// ============================================
+// RENDER: DASHBOARD
+// ============================================
+function renderDashboard() {
+  const counts = { safe:0, caution:0, danger:0, extreme:0 };
+  const today = new Date().toDateString();
+  const todayReadings = state.readings.filter(r => new Date(r.time).toDateString() === today);
+
+  const latestByLoc = {};
+  state.readings.forEach(r => { if (!latestByLoc[r.loc] || r.time > latestByLoc[r.loc].time) latestByLoc[r.loc] = r; });
+  Object.values(latestByLoc).forEach(r => { if (counts[r.status] !== undefined) counts[r.status]++; });
+
+  Object.keys(counts).forEach(key => {
+    const el = $('#count-' + key);
+    animateCounter(el, parseInt(el.textContent)||0, counts[key], 700);
+  });
+
+  const total = state.readings.length;
+  const avg = total > 0 ? state.readings.reduce((a,r)=>a+r.hi,0)/total : null;
+  const peak = todayReadings.length > 0 ? Math.max(...todayReadings.map(r=>r.hi)) : null;
+  const last = state.readings[0];
+
+  $('#sum-total').textContent = total;
+  $('#sum-avg').textContent = fmtNum(avg, 1) + (avg!==null?'°C':'');
+  $('#sum-peak').textContent = fmtNum(peak, 1) + (peak!==null?'°C':'');
+  $('#sum-last').textContent = last ? fmtTime(new Date(last.time)) : '--';
+}
+
+function animateCounter(el, from, to, duration) {
+  if (from === to) return;
+  const start = performance.now();
+  const tick = now => {
+    const p = Math.min((now - start) / duration, 1);
+    const ease = 1 - Math.pow(1 - p, 3);
+    el.textContent = Math.round(from + (to - from) * ease);
+    if (p < 1) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
+// ============================================
+// RENDER: ACTIVITY
+// ============================================
+function renderActivity() {
+  const list = $('#activity-list');
+  const recent = state.readings.slice(0, 10);
+  if (recent.length === 0) {
+    list.innerHTML = `<div class="activity-empty"><div class="empty-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"/></svg></div><p>No readings yet. Add your first measurement above.</p></div>`;
+    return;
+  }
+  list.innerHTML = recent.map(r => {
+    const st = STATUS_LEVELS.find(s => s.key === r.status) || STATUS_LEVELS[0];
+    const time = new Date(r.time);
+    const timeStr = time.toLocaleTimeString('en-PH', {hour:'2-digit', minute:'2-digit', hour12:false});
+    return `<div class="activity-item">
+      <div class="activity-dot ${r.status}"></div>
+      <div class="activity-info">
+        <div class="activity-loc">${r.loc}</div>
+        <div class="activity-meta">${timeStr} • ${fmtNum(r.temp,1)}°C / ${fmtNum(r.hum,0)}%</div>
       </div>
-      <div class="nav-meta">
-        <div class="live-pill">
-          <span class="live-dot"></span>
-          <span class="live-time" id="live-time">--:--:--</span>
-        </div>
-        <button class="btn-icon" id="btn-settings" aria-label="Settings">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
-        </button>
-      </div>
-    </nav>
+      <div class="activity-hi" style="color:${st.color}">${fmtNum(r.hi,1)}°</div>
+    </div>`;
+  }).join('');
+}
 
-    <!-- Hero Section -->
-    <section class="hero" id="section-monitor">
-      <div class="hero-left">
-        <div class="hero-badge" id="hero-badge">
-          <span class="badge-dot" id="badge-dot"></span>
-          <span id="badge-text">Ready</span>
-        </div>
-        <h1 class="hero-title">Heat Index<br>Monitor</h1>
-        <p class="hero-desc">Real-time temperature & humidity analysis with intelligent validation across 30 campus locations.</p>
+$('#btn-clear-recent')?.addEventListener('click', () => {
+  if (!confirm('Clear all readings? This cannot be undone.')) return;
+  state.readings = [];
+  saveData();
+  renderAll();
+  toast('All readings cleared', 'info');
+});
 
-        <div class="hero-stats" id="hero-stats">
-          <div class="hstat"><span class="hstat-val" id="hstat-avg">--</span><span class="hstat-label">Avg HI</span></div>
-          <div class="hstat"><span class="hstat-val" id="hstat-peak">--</span><span class="hstat-label">Peak</span></div>
-          <div class="hstat"><span class="hstat-val" id="hstat-total">0</span><span class="hstat-label">Readings</span></div>
-        </div>
-      </div>
+// ============================================
+// RENDER: HISTORY
+// ============================================
+function renderHistory(filter='') {
+  const tbody = $('#history-tbody');
+  let data = state.readings;
+  if (filter.trim()) {
+    const q = filter.toLowerCase();
+    data = data.filter(r => r.loc.toLowerCase().includes(q));
+  }
+  if (data.length === 0) {
+    tbody.innerHTML = `<tr class="table-empty"><td colspan="7"><div class="empty-state"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"/></svg><p>${filter ? 'No matches found' : 'No readings recorded yet'}</p><span>${filter ? 'Try a different search term' : 'Go to Monitor to add your first measurement'}</span></div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = data.slice(0, 100).map(r => {
+    const st = STATUS_LEVELS.find(s => s.key === r.status) || STATUS_LEVELS[0];
+    const timeStr = fmtDateTime(new Date(r.time));
+    return `<tr data-id="${r.id}">
+      <td style="font-family:var(--font-mono);font-size:0.78rem;color:var(--text-dim)">${timeStr}</td>
+      <td style="font-weight:600">${r.loc}</td>
+      <td style="font-family:var(--font-mono)">${fmtNum(r.temp,1)}°C</td>
+      <td style="font-family:var(--font-mono)">${fmtNum(r.hum,0)}%</td>
+      <td style="font-family:var(--font-mono);font-weight:700;color:${st.color}">${fmtNum(r.hi,1)}°C</td>
+      <td><span class="status-tag ${r.status}">${st.label}</span></td>
+      <td><button class="btn-row" onclick="app.deleteReading('${r.id}')" aria-label="Delete"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></td>
+    </tr>`;
+  }).join('');
+}
 
-      <div class="hero-right">
-        <div class="gauge-wrap">
-          <svg class="gauge-svg" viewBox="0 0 200 120">
-            <defs>
-              <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stop-color="#10b981"/>
-                <stop offset="35%" stop-color="#f59e0b"/>
-                <stop offset="65%" stop-color="#f97316"/>
-                <stop offset="100%" stop-color="#ef4444"/>
-              </linearGradient>
-              <filter id="gaugeGlow" x="-20%" y="-20%" width="140%" height="140%">
-                <feGaussianBlur stdDeviation="3" result="blur"/>
-                <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-              </filter>
-            </defs>
-            <path d="M20 100 A80 80 0 0 1 180 100" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="14" stroke-linecap="round"/>
-            <path id="gauge-arc" d="M20 100 A80 80 0 0 1 20 100" fill="none" stroke="url(#gaugeGrad)" stroke-width="14" stroke-linecap="round" filter="url(#gaugeGlow)"/>
-            <text x="100" y="90" text-anchor="middle" fill="#fff" font-size="32" font-weight="800" font-family="JetBrains Mono, monospace" id="gauge-value">--</text>
-            <text x="100" y="112" text-anchor="middle" fill="rgba(255,255,255,0.35)" font-size="9" font-weight="600" letter-spacing="3" text-transform="uppercase">HEAT INDEX °C</text>
-          </svg>
-          <div class="gauge-labels">
-            <span>20°</span><span>35°</span><span>50°</span>
-          </div>
-        </div>
-      </div>
-    </section>
+function deleteReading(id) {
+  state.readings = state.readings.filter(r => r.id !== id);
+  saveData();
+  renderAll();
+  toast('Reading deleted', 'info');
+}
 
-    <!-- Input Panel -->
-    <section class="panel input-panel" id="input-panel">
-      <div class="panel-header">
-        <div class="panel-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-        </div>
-        <h2>New Reading</h2>
-      </div>
+$('#history-search')?.addEventListener('input', debounce(e => renderHistory(e.target.value), 200));
 
-      <form class="reading-form" id="reading-form" autocomplete="off">
-        <div class="form-grid">
-          <div class="field-group">
-            <label for="loc-input">Location</label>
-            <div class="input-wrap">
-              <input type="text" id="loc-input" list="loc-list" placeholder="Select or type location" required>
-              <datalist id="loc-list"></datalist>
-              <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-            </div>
-          </div>
+// ============================================
+// EXPORT / IMPORT
+// ============================================
+function exportCSV() {
+  if (state.readings.length === 0) { toast('No data to export', 'error'); return; }
+  const rows = [['ID','Time','Location','Temperature_C','Humidity_%','HeatIndex_C','Status']];
+  state.readings.forEach(r => rows.push([r.id, r.time, r.loc, fmtNum(r.temp,2), fmtNum(r.hum,2), fmtNum(r.hi,2), r.status]));
+  const csv = rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n');
+  downloadFile(csv, 'schoolheat_export.csv', 'text/csv');
+  toast('CSV exported', 'success');
+}
 
-          <div class="field-group">
-            <label for="temp-input">Temperature <span class="unit">°C</span></label>
-            <div class="input-wrap">
-              <input type="number" id="temp-input" step="0.1" min="-10" max="60" placeholder="0.0" required>
-              <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0Z"/></svg>
-            </div>
-            <div class="range-hint">Range: -10 to 60°C</div>
-          </div>
+function exportJSON() {
+  const data = { version:'2.0', exportedAt:new Date().toISOString(), settings:state.settings, readings:state.readings };
+  downloadFile(JSON.stringify(data, null, 2), 'schoolheat_backup.json', 'application/json');
+  toast('JSON backup exported', 'success');
+}
 
-          <div class="field-group">
-            <label for="hum-input">Relative Humidity <span class="unit">%</span></label>
-            <div class="input-wrap">
-              <input type="number" id="hum-input" step="0.1" min="0" max="100" placeholder="0" required>
-              <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0L12 2.69Z"/></svg>
-            </div>
-            <div class="range-hint">Range: 0–100%</div>
-          </div>
-        </div>
+function downloadFile(content, filename, type) {
+  const blob = new Blob([content], {type});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
 
-        <div class="form-actions">
-          <button type="submit" class="btn-primary" id="btn-submit">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-            <span>Record Reading</span>
-          </button>
-          <button type="button" class="btn-ghost" id="btn-random">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l5 5M4 4l5 5"/></svg>
-            Demo
-          </button>
-        </div>
-      </form>
+function importJSON(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (data.readings && Array.isArray(data.readings)) {
+        state.readings = data.readings.slice(0, MAX_READINGS);
+        if (data.settings) state.settings = {...state.settings, ...data.settings};
+        saveData(); renderAll(); applySettings();
+        toast(`Imported ${state.readings.length} readings`, 'success');
+      } else throw new Error('Invalid format');
+    } catch(err) { toast('Import failed: invalid file', 'error'); }
+  };
+  reader.readAsText(file);
+}
 
-      <!-- Live Preview -->
-      <div class="preview-card" id="preview-card" style="display:none">
-        <div class="preview-header">
-          <span class="preview-label">Calculated Heat Index</span>
-          <span class="preview-badge" id="preview-badge">Safe</span>
-        </div>
-        <div class="preview-value" id="preview-value">--</div>
-        <div class="preview-bar-wrap">
-          <div class="preview-bar">
-            <div class="preview-bar-fill" id="preview-bar-fill"></div>
-          </div>
-          <div class="preview-bar-labels">
-            <span>Safe</span><span>Caution</span><span>Danger</span><span>Extreme</span>
-          </div>
-        </div>
-        <div class="preview-meta" id="preview-meta">Enter values to calculate</div>
-      </div>
-    </section>
+$('#btn-export')?.addEventListener('click', exportCSV);
+$('#btn-export-json')?.addEventListener('click', exportJSON);
+$('#btn-import')?.addEventListener('click', () => $('#file-import').click());
+$('#file-import')?.addEventListener('change', e => { if(e.target.files[0]) importJSON(e.target.files[0]); e.target.value=''; });
 
-    <!-- Dashboard -->
-    <section class="panel dashboard-panel" id="section-dashboard">
-      <div class="panel-header">
-        <div class="panel-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-        </div>
-        <h2>Campus Dashboard</h2>
-        <span class="panel-badge">30 Locations</span>
-      </div>
+// ============================================
+// FORECAST CHART (Lazy)
+// ============================================
+function initChart() {
+  if (state.chartLoaded || typeof Chart === 'undefined') return;
+  if (state.readings.length < 3) return;
 
-      <div class="dash-grid" id="dash-grid">
-        <div class="dash-card safe" data-status="safe">
-          <div class="dash-card-glow"></div>
-          <div class="dash-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-          </div>
-          <div class="dash-count" id="count-safe">0</div>
-          <div class="dash-label">Safe</div>
-          <div class="dash-sublabel">Below 27°C</div>
-        </div>
+  const ctx = $('#forecast-chart');
+  const fallback = $('#chart-fallback');
+  if (!ctx) return;
 
-        <div class="dash-card caution" data-status="caution">
-          <div class="dash-card-glow"></div>
-          <div class="dash-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-          </div>
-          <div class="dash-count" id="count-caution">0</div>
-          <div class="dash-label">Caution</div>
-          <div class="dash-sublabel">27 – 32°C</div>
-        </div>
+  const byDay = {};
+  state.readings.forEach(r => {
+    const d = new Date(r.time).toLocaleDateString('en-PH', {month:'short', day:'numeric'});
+    if (!byDay[d]) byDay[d] = [];
+    byDay[d].push(r.hi);
+  });
+  const days = Object.keys(byDay).slice(-7);
+  const avgs = days.map(d => byDay[d].reduce((a,b)=>a+b,0)/byDay[d].length);
 
-        <div class="dash-card danger" data-status="danger">
-          <div class="dash-card-glow"></div>
-          <div class="dash-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8Z"/></svg>
-          </div>
-          <div class="dash-count" id="count-danger">0</div>
-          <div class="dash-label">Danger</div>
-          <div class="dash-sublabel">32 – 41°C</div>
-        </div>
+  const projDays = [], projVals = [];
+  if (avgs.length >= 3) {
+    const n = avgs.length;
+    const slope = (avgs[n-1] - avgs[0]) / (n - 1);
+    for (let i = 1; i <= 3; i++) {
+      const nextVal = avgs[n-1] + slope * i;
+      const date = new Date(); date.setDate(date.getDate() + i);
+      projDays.push(date.toLocaleDateString('en-PH', {month:'short', day:'numeric'}) + ' (proj)');
+      projVals.push(clamp(nextVal, 20, 55));
+    }
+  }
 
-        <div class="dash-card extreme" data-status="extreme">
-          <div class="dash-card-glow"></div>
-          <div class="dash-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-          </div>
-          <div class="dash-count" id="count-extreme">0</div>
-          <div class="dash-label">Extreme</div>
-          <div class="dash-sublabel">Above 41°C</div>
-        </div>
-      </div>
+  const allLabels = [...days, ...projDays];
+  const allData = [...avgs, ...projVals];
+  const pointColors = allData.map(v => getStatus(v).color);
+  const pointRadii = avgs.map(() => 5).concat(projVals.map(() => 7));
+  const pointStyles = avgs.map(() => 'circle').concat(projVals.map(() => 'rectRot'));
 
-      <div class="dash-summary" id="dash-summary">
-        <div class="sum-item"><span class="sum-label">Total Readings</span><span class="sum-val" id="sum-total">0</span></div>
-        <div class="sum-item"><span class="sum-label">Avg Heat Index</span><span class="sum-val" id="sum-avg">--</span></div>
-        <div class="sum-item"><span class="sum-label">Peak Today</span><span class="sum-val" id="sum-peak">--</span></div>
-        <div class="sum-item"><span class="sum-label">Last Update</span><span class="sum-val" id="sum-last">--</span></div>
-      </div>
-    </section>
+  fallback.style.display = 'none';
+  ctx.style.display = 'block';
 
-    <!-- Activity -->
-    <section class="panel activity-panel" id="section-activity">
-      <div class="panel-header">
-        <div class="panel-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-        </div>
-        <h2>Recent Activity</h2>
-        <div class="panel-actions">
-          <button class="btn-text" id="btn-clear-recent">Clear All</button>
-        </div>
-      </div>
-      <div class="activity-list" id="activity-list">
-        <div class="activity-empty">
-          <div class="empty-icon">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"/></svg>
-          </div>
-          <p>No readings yet. Add your first measurement above.</p>
-        </div>
-      </div>
-    </section>
+  state.chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: allLabels,
+      datasets: [{
+        label: 'Heat Index (°C)',
+        data: allData,
+        borderColor: '#6366f1',
+        backgroundColor: 'rgba(99,102,241,0.08)',
+        borderWidth: 3,
+        tension: 0.4,
+        fill: true,
+        pointBackgroundColor: pointColors,
+        pointBorderColor: '#0a0a1a',
+        pointBorderWidth: 2,
+        pointRadius: pointRadii,
+        pointStyle: pointStyles,
+        pointHoverRadius: 9
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { intersect: false, mode: 'index' },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#12122a', titleColor: '#f0f0f8', bodyColor: '#8b8ba8',
+          borderColor: 'rgba(255,255,255,0.06)', borderWidth: 1, padding: 14, cornerRadius: 10,
+          callbacks: {
+            label: ctx => `Heat Index: ${fmtNum(ctx.parsed.y, 1)}°C`,
+            afterLabel: ctx => `Status: ${getStatus(ctx.parsed.y).label}`
+          }
+        }
+      },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#5a5a78', font: { family: 'Inter', size: 11 } } },
+        y: { grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#5a5a78', font: { family: 'JetBrains Mono', size: 11 } }, suggestedMin: 20, suggestedMax: 50 }
+      }
+    }
+  });
+  state.chartLoaded = true;
+}
 
-    <!-- History -->
-    <section class="panel history-panel" id="section-history">
-      <div class="panel-header">
-        <div class="panel-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-        </div>
-        <h2>Reading History</h2>
-        <div class="panel-actions">
-          <div class="search-box">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-            <input type="text" id="history-search" placeholder="Search location...">
-          </div>
-          <button class="btn-text" id="btn-export">Export CSV</button>
-        </div>
-      </div>
+const chartObserver = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if (e.isIntersecting) initChart(); });
+}, { threshold: 0.15 });
 
-      <div class="table-wrap">
-        <table class="data-table" id="history-table">
-          <thead>
-            <tr>
-              <th>Time</th>
-              <th>Location</th>
-              <th>Temp</th>
-              <th>Hum</th>
-              <th>HI</th>
-              <th>Status</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody id="history-tbody">
-            <tr class="table-empty"><td colspan="7">
-              <div class="empty-state">
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"/></svg>
-                <p>No readings recorded yet</p>
-                <span>Go to Monitor to add your first measurement</span>
-              </div>
-            </td></tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
+// ============================================
+// CAMPUS MAP
+// ============================================
+function renderMap() {
+  const container = $('#map-locations');
+  if (!container) return;
 
-    <!-- Forecast -->
-    <section class="panel forecast-panel" id="section-forecast">
-      <div class="panel-header">
-        <div class="panel-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h10M9 4v16M22 12h-4M17 4v16"/></svg>
-        </div>
-        <h2>7-Day Forecast</h2>
-        <span class="panel-badge" id="forecast-badge">AI Predicted</span>
-      </div>
-      <div class="chart-container" id="chart-container">
-        <canvas id="forecast-chart"></canvas>
-        <div class="chart-fallback" id="chart-fallback">
-          <div class="empty-state">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
-            <p>Not enough data for insights</p>
-            <span>Record at least 3 days of readings to generate predictions</span>
-          </div>
-        </div>
-      </div>
-    </section>
+  const positions = [
+    [15,85],[10,75],[20,60],[30,55],[25,45],[35,40],[45,35],[50,25],[40,70],[55,60],
+    [60,75],[65,70],[50,80],[80,85],[45,15],[70,30],[75,25],[85,35],[80,20],[60,15],
+    [30,30],[35,25],[40,20],[55,40],[60,35],[65,30],[75,50],[80,45],[85,55],[50,50]
+  ];
 
-    <!-- Campus Map -->
-    <section class="panel map-panel" id="section-map">
-      <div class="panel-header">
-        <div class="panel-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 21 18 21 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
-        </div>
-        <h2>Campus Hazard Map</h2>
-        <div class="legend">
-          <span class="legend-dot safe"></span>Safe
-          <span class="legend-dot caution"></span>Caution
-          <span class="legend-dot danger"></span>Danger
-          <span class="legend-dot extreme"></span>Extreme
-          <span class="legend-dot nodata"></span>No Data
-        </div>
-      </div>
+  const latestByLoc = {};
+  state.readings.forEach(r => { if (!latestByLoc[r.loc] || r.time > latestByLoc[r.loc].time) latestByLoc[r.loc] = r; });
 
-      <div class="map-wrap">
-        <div class="campus-map" id="campus-map">
-          <img src="assets/campus-map.jpg" alt="Campus Map" loading="lazy" decoding="async" id="map-image">
-          <div class="map-overlay"></div>
-        </div>
-        <div class="map-locations" id="map-locations"></div>
-      </div>
-    </section>
+  container.innerHTML = LOCATIONS.map((loc, i) => {
+    const r = latestByLoc[loc];
+    const status = r ? r.status : 'nodata';
+    const hi = r ? fmtNum(r.hi, 1) + '°C' : 'No data';
+    const [x, y] = positions[i] || [50, 50];
+    return `<div class="map-pin ${status}" style="left:${x}%;top:${y}%">
+      <div class="pin-tooltip"><strong>${loc}</strong>${hi}</div>
+    </div>`;
+  }).join('');
+}
 
-    <!-- Footer -->
-    <footer class="app-footer">
-      <div class="footer-top">
-        <img src="assets/school-logo.png" alt="Mahaplag NHS" class="footer-seal">
-        <div class="footer-brand">
-          <span class="footer-title">SchoolHeat Ultimate</span>
-          <span class="footer-div">•</span>
-          <span class="footer-sub">TUKLAS 2026</span>
-        </div>
-      </div>
-      <div class="footer-meta">
-        <span>Mahaplag National High School</span>
-        <span class="footer-div">•</span>
-        <span>30 Monitored Buildings</span>
-        <span class="footer-div">•</span>
-        <span id="footer-version">v2.0</span>
-      </div>
-    </footer>
-  </main>
+// ============================================
+// SETTINGS
+// ============================================
+function initSettings() {
+  const modal = $('#modal-settings');
+  $('#btn-settings')?.addEventListener('click', () => { modal.style.display='flex'; applySettings(); });
+  $('#btn-close-settings')?.addEventListener('click', () => modal.style.display='none');
+  modal?.addEventListener('click', e => { if(e.target === modal) modal.style.display='none'; });
 
-  <!-- Toast Container -->
-  <div class="toast-container" id="toast-container"></div>
+  ['set-temp-offset','set-hum-offset','set-threshold','set-cooldown'].forEach(id => {
+    $(`#${id}`)?.addEventListener('change', saveSettingsFromUI);
+  });
 
-  <!-- Settings Modal -->
-  <div class="modal-backdrop" id="modal-settings" style="display:none">
-    <div class="modal">
-      <div class="modal-header">
-        <h3>Settings</h3>
-        <button class="btn-icon modal-close" id="btn-close-settings">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
-        </button>
-      </div>
-      <div class="modal-body">
-        <div class="settings-group">
-          <h4>Calibration</h4>
-          <div class="setting-row">
-            <label>Temp Offset (°C)</label>
-            <input type="number" id="set-temp-offset" step="0.1" value="0">
-          </div>
-          <div class="setting-row">
-            <label>Humidity Offset (%)</label>
-            <input type="number" id="set-hum-offset" step="0.1" value="0">
-          </div>
-        </div>
-        <div class="settings-group">
-          <h4>Alerts</h4>
-          <div class="setting-row">
-            <label>Threshold (°C)</label>
-            <input type="number" id="set-threshold" value="32">
-          </div>
-          <div class="setting-row">
-            <label>Cooldown (min)</label>
-            <input type="number" id="set-cooldown" value="5">
-          </div>
-        </div>
-        <div class="settings-group">
-          <h4>Data</h4>
-          <div class="setting-actions">
-            <button class="btn-ghost" id="btn-import">Import JSON</button>
-            <button class="btn-ghost" id="btn-export-json">Export JSON</button>
-            <button class="btn-danger" id="btn-reset">Reset All Data</button>
-          </div>
-        </div>
-        <div class="settings-group">
-          <h4>About</h4>
-          <div class="about-grid">
-            <div class="about-item"><span>School</span><strong>Mahaplag National High School</strong></div>
-            <div class="about-item"><span>Competition</span><strong>TUKLAS 2026</strong></div>
-            <div class="about-item"><span>Locations</span><strong>30 Monitored Buildings</strong></div>
-            <div class="about-item"><span>Formula</span><strong>Steadman-Rothfusz (°C)</strong></div>
-            <div class="about-item"><span>Features</span><strong>PWA, Forecast, Map, Validation</strong></div>
-            <div class="about-item"><span>Storage</span><strong>Local + Auto-Sync</strong></div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
+  $('#btn-reset')?.addEventListener('click', () => {
+    if (!confirm('Reset ALL data and settings? This cannot be undone.')) return;
+    state.readings = [];
+    state.settings = { tempOffset:0, humOffset:0, threshold:32, cooldown:5, smsNumber:'' };
+    state.lastAlert = {};
+    saveData(); applySettings(); renderAll();
+    toast('All data reset', 'info');
+    modal.style.display = 'none';
+  });
+}
 
-  <input type="file" id="file-import" accept=".json" style="display:none">
+function applySettings() {
+  $('#set-temp-offset').value = state.settings.tempOffset;
+  $('#set-hum-offset').value = state.settings.humOffset;
+  $('#set-threshold').value = state.settings.threshold;
+  $('#set-cooldown').value = state.settings.cooldown;
+}
 
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
-  <script src="script.js" defer></script>
-</body>
-</html>
+function saveSettingsFromUI() {
+  state.settings.tempOffset = parseFloat($('#set-temp-offset').value) || 0;
+  state.settings.humOffset = parseFloat($('#set-hum-offset').value) || 0;
+  state.settings.threshold = parseFloat($('#set-threshold').value) || 32;
+  state.settings.cooldown = parseFloat($('#set-cooldown').value) || 5;
+  saveData();
+  toast('Settings saved', 'success');
+}
+
+// ============================================
+// KEYBOARD SHORTCUTS
+// ============================================
+document.addEventListener('keydown', e => {
+  if (e.target.matches('input,textarea,select')) return;
+  if (e.key === 'n' || e.key === 'N') { $('#loc-input')?.focus(); e.preventDefault(); }
+  if (e.key === 's' || e.key === 'S') { $('#btn-settings')?.click(); e.preventDefault(); }
+  if (e.key === 'd' || e.key === 'D') { $('#btn-random')?.click(); e.preventDefault(); }
+  if (e.key === 'Escape') { $('#modal-settings').style.display = 'none'; }
+});
+
+// ============================================
+// SERVICE WORKER
+// ============================================
+function initSW() {
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+}
+
+// ============================================
+// RENDER ALL
+// ============================================
+function renderAll() {
+  renderGauge();
+  renderHeroStats();
+  renderDashboard();
+  renderActivity();
+  renderHistory($('#history-search')?.value || '');
+  renderMap();
+  if (state.chartLoaded && state.chart) { state.chart.destroy(); state.chart = null; state.chartLoaded = false; }
+  initChart();
+}
+
+// ============================================
+// INIT
+// ============================================
+function init() {
+  updateLoader(15);
+  loadData();
+  updateLoader(45);
+
+  startClock();
+  initForm();
+  initSettings();
+  initSW();
+
+  const forecastSection = $('#section-forecast');
+  if (forecastSection) chartObserver.observe(forecastSection);
+
+  updateLoader(75);
+  renderAll();
+  updateLoader(100);
+
+  hideLoader();
+
+  window.app = { deleteReading };
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
+
+})();
