@@ -417,9 +417,15 @@
       </div>
 
       <div class="glass-card map-card">
-        <div class="map-wrap" id="map-wrap">
-          <img src="assets/campus-map.jpg" alt="Campus Map" class="map-image" loading="lazy" decoding="async">
-          <div class="map-pins" id="map-pins"></div>
+        <div class="map-hint">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+          <span>Scroll or pinch to explore the full campus map</span>
+        </div>
+        <div class="map-scroll-wrap">
+          <div class="map-wrap" id="map-wrap">
+            <img src="assets/campus-map.jpg" alt="Campus Map" class="map-image" loading="lazy" decoding="async" id="map-img">
+            <div class="map-pins" id="map-pins"></div>
+          </div>
         </div>
         <div class="map-legend">
           <div class="legend-item"><span class="legend-pin safe"></span><span>Safe (&lt;27°C)</span></div>
