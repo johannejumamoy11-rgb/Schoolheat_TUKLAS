@@ -952,7 +952,6 @@ class SchoolHeatApp {
 
   renderMap() {
     const pinsContainer = document.getElementById('map-pins');
-    const mapImg = document.getElementById('map-img');
     if (!pinsContainer) return;
 
     const latestByLoc = {};
@@ -976,17 +975,25 @@ class SchoolHeatApp {
       `;
     }).join('');
 
-    // Ensure pins container matches image size after load
-    const syncPins = () => {
-      if (mapImg && pinsContainer) {
-        pinsContainer.style.width = mapImg.clientWidth + 'px';
-        pinsContainer.style.height = mapImg.clientHeight + 'px';
-      }
-    };
-    if (mapImg) {
-      if (mapImg.complete) syncPins();
-      else mapImg.onload = syncPins;
-      window.addEventListener('resize', syncPins);
+    // Sync pin overlay to match loaded image dimensions
+    this.syncMapPins();
+  }
+
+  syncMapPins() {
+    const mapImg = document.getElementById('map-img');
+    const pinsContainer = document.getElementById('map-pins');
+    const mapWrap = document.getElementById('map-wrap');
+    if (!mapImg || !pinsContainer || !mapWrap) return;
+
+    // If image is loaded and visible, size pins to match it
+    if (mapImg.complete && mapImg.naturalWidth > 0) {
+      pinsContainer.style.width = mapImg.clientWidth + 'px';
+      pinsContainer.style.height = mapImg.clientHeight + 'px';
+    } else {
+      // Fallback: size pins to the wrap container
+      const wrapRect = mapWrap.getBoundingClientRect();
+      pinsContainer.style.width = (wrapRect.width - 32) + 'px';
+      pinsContainer.style.height = (wrapRect.height - 32) + 'px';
     }
   }
 
@@ -1136,6 +1143,13 @@ class SchoolHeatApp {
       setTimeout(() => {
         this.forecastChartLoaded = false;
         this.drawForecastChart();
+      }, 100);
+    }
+    if (tabId === 'map') {
+      // Re-render map when tab opens since image may have loaded
+      setTimeout(() => {
+        this.renderMap();
+        this.syncMapPins();
       }, 100);
     }
   }
