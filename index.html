@@ -440,18 +440,48 @@
         </div>
         <div class="map-scroll-wrap" id="map-scroll-wrap">
           <div class="map-wrap" id="map-wrap">
+            <!-- Try multiple map image sources -->
             <img 
               src="assets/campus-map.jpg" 
               alt="Campus Map" 
               class="map-image" 
               id="map-img"
               onload="if(window.app)app.syncMapPins()"
-              onerror="this.style.display='none';document.getElementById('map-fallback').style.display='flex';"
+              onerror="app.tryNextMapImage(this)"
+              data-attempt="0"
             >
+            <!-- SVG Fallback Map -->
             <div class="map-fallback" id="map-fallback">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="1 6 1 22 8 18 16 22 21 18 21 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
-              <span>Campus map not found</span>
-              <small>Upload campus-map.jpg to assets/ folder</small>
+              <svg class="svg-map" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
+                <!-- Grid -->
+                <defs>
+                  <pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse">
+                    <path d="M 10 0 L 0 0 0 10" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="0.3"/>
+                  </pattern>
+                </defs>
+                <rect width="100" height="100" fill="url(#grid)" rx="2"/>
+                <!-- Campus outline -->
+                <rect x="5" y="5" width="90" height="90" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="0.5" rx="2"/>
+                <!-- Buildings (simplified blocks) -->
+                <rect x="15" y="15" width="20" height="12" fill="rgba(59,130,246,0.08)" stroke="rgba(59,130,246,0.15)" rx="1"/>
+                <rect x="42" y="15" width="16" height="12" fill="rgba(59,130,246,0.08)" stroke="rgba(59,130,246,0.15)" rx="1"/>
+                <rect x="65" y="15" width="20" height="12" fill="rgba(59,130,246,0.08)" stroke="rgba(59,130,246,0.15)" rx="1"/>
+                <rect x="15" y="35" width="14" height="10" fill="rgba(59,130,246,0.08)" stroke="rgba(59,130,246,0.15)" rx="1"/>
+                <rect x="35" y="35" width="14" height="10" fill="rgba(59,130,246,0.08)" stroke="rgba(59,130,246,0.15)" rx="1"/>
+                <rect x="55" y="35" width="14" height="10" fill="rgba(59,130,246,0.08)" stroke="rgba(59,130,246,0.15)" rx="1"/>
+                <rect x="75" y="35" width="14" height="10" fill="rgba(59,130,246,0.08)" stroke="rgba(59,130,246,0.15)" rx="1"/>
+                <rect x="15" y="52" width="12" height="10" fill="rgba(59,130,246,0.08)" stroke="rgba(59,130,246,0.15)" rx="1"/>
+                <rect x="32" y="52" width="12" height="10" fill="rgba(59,130,246,0.08)" stroke="rgba(59,130,246,0.15)" rx="1"/>
+                <rect x="49" y="52" width="12" height="10" fill="rgba(59,130,246,0.08)" stroke="rgba(59,130,246,0.15)" rx="1"/>
+                <rect x="66" y="52" width="12" height="10" fill="rgba(59,130,246,0.08)" stroke="rgba(59,130,246,0.15)" rx="1"/>
+                <rect x="83" y="52" width="12" height="10" fill="rgba(59,130,246,0.08)" stroke="rgba(59,130,246,0.15)" rx="1"/>
+                <rect x="20" y="70" width="60" height="8" fill="rgba(16,185,129,0.06)" stroke="rgba(16,185,129,0.12)" rx="1"/>
+                <rect x="15" y="85" width="25" height="8" fill="rgba(245,158,11,0.06)" stroke="rgba(245,158,11,0.12)" rx="1"/>
+                <rect x="50" y="85" width="35" height="8" fill="rgba(245,158,11,0.06)" stroke="rgba(245,158,11,0.12)" rx="1"/>
+                <!-- Labels -->
+                <text x="50" y="50" text-anchor="middle" fill="rgba(255,255,255,0.15)" font-size="4" font-family="Inter, sans-serif">MAHAPLAG NHS CAMPUS</text>
+                <text x="50" y="55" text-anchor="middle" fill="rgba(255,255,255,0.08)" font-size="2.5" font-family="Inter, sans-serif">Upload campus-map.jpg for full map</text>
+              </svg>
             </div>
             <div class="map-pins" id="map-pins"></div>
           </div>
