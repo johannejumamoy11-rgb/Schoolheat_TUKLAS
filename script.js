@@ -952,6 +952,7 @@ class SchoolHeatApp {
 
   renderMap() {
     const pinsContainer = document.getElementById('map-pins');
+    const mapImg = document.getElementById('map-img');
     if (!pinsContainer) return;
 
     const latestByLoc = {};
@@ -974,6 +975,19 @@ class SchoolHeatApp {
         </div>
       `;
     }).join('');
+
+    // Ensure pins container matches image size after load
+    const syncPins = () => {
+      if (mapImg && pinsContainer) {
+        pinsContainer.style.width = mapImg.clientWidth + 'px';
+        pinsContainer.style.height = mapImg.clientHeight + 'px';
+      }
+    };
+    if (mapImg) {
+      if (mapImg.complete) syncPins();
+      else mapImg.onload = syncPins;
+      window.addEventListener('resize', syncPins);
+    }
   }
 
   /* ============================================
