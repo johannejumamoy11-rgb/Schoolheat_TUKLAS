@@ -1128,8 +1128,10 @@ class SchoolHeatApp {
       const reading = latestByLoc[loc.name];
       const status = reading ? reading.status : 'nodata';
       const hi = reading ? reading.heatIndex.toFixed(1) + '°C' : 'No data';
+      // Escape location names for HTML attribute safety
+      const safeName = loc.name.replace(/"/g, '&quot;');
       return `
-        <div class="map-pin ${status}" style="left:${loc.x}%;top:${loc.y}%">
+        <div class="map-pin ${status}" style="left:${loc.x}%;top:${loc.y}%" data-loc="${safeName}">
           <div class="map-pin-tooltip">
             <div class="tt-loc">${loc.name}</div>
             <div class="tt-hi ${status}">${hi}</div>
@@ -1145,15 +1147,58 @@ class SchoolHeatApp {
     const mapImg = document.getElementById('map-img');
     const pinsContainer = document.getElementById('map-pins');
     const mapWrap = document.getElementById('map-wrap');
+    const fallback = document.getElementById('map-fallback');
     if (!pinsContainer || !mapWrap) return;
 
+    // If real image loaded and visible
     if (mapImg && mapImg.complete && mapImg.naturalWidth > 0 && mapImg.style.display !== 'none') {
       pinsContainer.style.width = mapImg.clientWidth + 'px';
       pinsContainer.style.height = mapImg.clientHeight + 'px';
+      if (fallback) fallback.classList.remove('active');
+      return;
+    }
+
+    // If fallback SVG is active
+    if (fallback && fallback.classList.contains('active')) {
+      const svg = fallback.querySelector('.svg-map');
+      if (svg) {
+        const rect = svg.getBoundingClientRect();
+        pinsContainer.style.width = rect.width + 'px';
+        pinsContainer.style.height = rect.height + 'px';
+        return;
+      }
+    }
+
+    // Default: size to wrap container
+    const wrapRect = mapWrap.getBoundingClientRect();
+    pinsContainer.style.width = Math.max(wrapRect.width - 32, 300) + 'px';
+    pinsContainer.style.height = Math.max(wrapRect.height - 32, 300) + 'px';
+  }
+
+  tryNextMapImage(img) {
+    const attempts = [
+      'assets/campus-map.jpg',
+      'assets/campus-map.png',
+      'assets/campus-map.jpeg',
+      'assets/map.jpg',
+      'assets/map.png',
+      'assets/school-map.jpg',
+      'assets/school-map.png'
+    ];
+    let current = parseInt(img.dataset.attempt || '0');
+    current++;
+    if (current < attempts.length) {
+      img.dataset.attempt = current;
+      img.src = attempts[current];
     } else {
-      const wrapRect = mapWrap.getBoundingClientRect();
-      pinsContainer.style.width = (wrapRect.width - 32) + 'px';
-      pinsContainer.style.height = (wrapRect.height - 32) + 'px';
+      // All attempts failed - show SVG fallback
+      img.style.display = 'none';
+      const fallback = document.getElementById('map-fallback');
+      if (fallback) {
+        fallback.classList.add('active');
+        fallback.style.display = 'block';
+      }
+      this.syncMapPins();
     }
   }
 
@@ -1309,7 +1354,15 @@ class SchoolHeatApp {
       }, 100);
     }
     if (tabId === 'map') {
-      setTimeout(() => { this.renderMap(); this.syncMapPins(); }, 100);
+      setTimeout(() => {
+        this.renderMap();
+        this.syncMapPins();
+        // Try loading map image if not already attempted
+        const img = document.getElementById('map-img');
+        if (img && !img.src && img.dataset.attempt === '0') {
+          img.src = 'assets/campus-map.jpg';
+        }
+      }, 100);
     }
     if (tabId === 'input') {
       this.updateRecentLocations();
