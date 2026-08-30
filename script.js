@@ -1,6 +1,6 @@
 /* ============================================
    SchoolHeat Ultimate — TUKLAS 2026
-   Core Application Logic
+   Core Application Logic v4.1
    ============================================ */
 
 const LOCATIONS = [
@@ -66,12 +66,15 @@ class SchoolHeatApp {
     this.populateLocations();
     this.applySettings();
     this.bindEvents();
+    this.startClock();
+    this.checkFirstVisit();
     this.updateDashboard();
     this.renderHistory();
     this.renderMap();
     this.setupForecastObserver();
     this.setupTrendObserver();
     this.setupDistributionObserver();
+    this.setupPullToRefresh();
     this.hideLoader();
   }
 
@@ -80,8 +83,65 @@ class SchoolHeatApp {
     if (!loader) return;
     setTimeout(() => {
       loader.classList.add('hidden');
-      setTimeout(() => loader.remove(), 600);
-    }, 1800);
+      setTimeout(() => loader.remove(), 500);
+    }, 1200);
+  }
+
+  /* ============================================
+     FIRST VISIT — AUTO DEMO DATA
+     ============================================ */
+
+  checkFirstVisit() {
+    const visited = localStorage.getItem('sh_visited');
+    if (!visited && this.readings.length === 0) {
+      this.generateDemoData(true);
+      localStorage.setItem('sh_visited', 'true');
+      this.toast('Welcome! Demo data loaded for preview', 'info');
+    }
+  }
+
+  /* ============================================
+     REAL-TIME CLOCK
+     ============================================ */
+
+  startClock() {
+    const update = () => {
+      const el = document.getElementById('header-clock');
+      if (el) {
+        const now = new Date();
+        el.textContent = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+      }
+    };
+    update();
+    setInterval(update, 1000);
+  }
+
+  /* ============================================
+     PULL TO REFRESH
+     ============================================ */
+
+  setupPullToRefresh() {
+    let startY = 0;
+    let refreshing = false;
+    const content = document.querySelector('.tab-content');
+    if (!content) return;
+
+    content.addEventListener('touchstart', e => {
+      if (content.scrollTop === 0) startY = e.touches[0].clientY;
+    }, { passive: true });
+
+    content.addEventListener('touchmove', e => {
+      if (refreshing || content.scrollTop > 0) return;
+      const diff = e.touches[0].clientY - startY;
+      if (diff > 80) {
+        refreshing = true;
+        this.toast('Refreshing...', 'info');
+        this.updateDashboard();
+        this.renderHistory();
+        this.renderMap();
+        setTimeout(() => { refreshing = false; }, 1000);
+      }
+    }, { passive: true });
   }
 
   /* ============================================
@@ -128,7 +188,6 @@ class SchoolHeatApp {
      ============================================ */
 
   calculateHeatIndex(T, H) {
-    // Steadman-Rothfusz formula (Celsius)
     const c1 = -8.784694755;
     const c2 = 1.61139411;
     const c3 = 2.338548839;
@@ -139,7 +198,7 @@ class SchoolHeatApp {
     const c8 = 0.00072546;
     const c9 = -0.000003582;
     let hi = c1 + c2*T + c3*H + c4*T*H + c5*T*T + c6*H*H + c7*T*T*H + c8*T*H*H + c9*T*T*H*H;
-    return Math.max(T, hi); // HI cannot be lower than actual temp
+    return Math.max(T, hi);
   }
 
   getStatus(hi) {
@@ -149,8 +208,23 @@ class SchoolHeatApp {
     return 'extreme';
   }
 
-  getStatusColor(status) {
-    return STATUS_COLORS[status] || STATUS_COLORS.nodata;
+  /* ============================================
+     DATA QUALITY
+     ============================================ */
+
+  getQualityScore(temp, humidity) {
+    let score = 100;
+    // Outlier: temp outside 20-50°C
+    if (temp < 15 || temp > 55) score -= 30;
+    else if (temp < 20 || temp > 50) score -= 15;
+    // Humidity outside 20-100%
+    if (humidity < 10 || humidity > 100) score -= 30;
+    else if (humidity < 20 || humidity > 95) score -= 15;
+    // Spike detection: unrealistic combo
+    if (temp > 40 && humidity > 90) score -= 20;
+    if (score >= 90) return { label: 'Good', class: 'good' };
+    if (score >= 70) return { label: 'Fair', class: 'warn' };
+    return { label: 'Poor', class: 'bad' };
   }
 
   /* ============================================
@@ -200,6 +274,7 @@ class SchoolHeatApp {
     }
     const hi = this.calculateHeatIndex(temp, hum);
     const status = this.getStatus(hi);
+    const quality = this.getQualityScore(temp, hum);
     const reading = {
       id: Date.now(),
       location: loc,
@@ -207,6 +282,8 @@ class SchoolHeatApp {
       humidity: hum,
       heatIndex: parseFloat(hi.toFixed(2)),
       status,
+      quality: quality.label,
+      qualityClass: quality.class,
       timestamp: new Date().toISOString()
     };
     this.readings.unshift(reading);
@@ -214,10 +291,58 @@ class SchoolHeatApp {
     this.updateDashboard();
     this.renderHistory();
     this.renderMap();
+    this.checkAlerts();
     this.toast(`Saved: ${loc} — ${hi.toFixed(1)}°C (${STATUS_LABELS[status]})`, 'success');
     document.getElementById('temp-input').value = '';
     document.getElementById('humidity-input').value = '';
     document.getElementById('preview-card').style.display = 'none';
+    this.updateRecentLocations();
+  }
+
+  /* ============================================
+     RECENT LOCATIONS
+     ============================================ */
+
+  updateRecentLocations() {
+    const recent = [...new Set(this.readings.slice(0, 10).map(r => r.location))].slice(0, 5);
+    const container = document.getElementById('recent-locations');
+    const chips = document.getElementById('recent-chips');
+    if (!container || !chips) return;
+    if (recent.length === 0) {
+      container.style.display = 'none';
+      return;
+    }
+    container.style.display = 'flex';
+    chips.innerHTML = recent.map(loc => `
+      <span class="recent-chip" onclick="app.selectLocation('${loc.replace(/'/g, "\'")}')">${loc}</span>
+    `).join('');
+  }
+
+  selectLocation(loc) {
+    const select = document.getElementById('location-select');
+    if (select) {
+      select.value = loc;
+      this.toast(`Selected: ${loc}`, 'info');
+    }
+  }
+
+  /* ============================================
+     ALERTS
+     ============================================ */
+
+  checkAlerts() {
+    const dangerReadings = this.readings.filter(r => r.status === 'danger' || r.status === 'extreme');
+    const banner = document.getElementById('alert-banner');
+    const text = document.getElementById('alert-text');
+    if (!banner || !text) return;
+
+    if (dangerReadings.length > 0) {
+      const latest = dangerReadings[0];
+      text.textContent = `${STATUS_LABELS[latest.status]} heat at ${latest.location} — ${latest.heatIndex.toFixed(1)}°C`;
+      banner.style.display = 'flex';
+    } else {
+      banner.style.display = 'none';
+    }
   }
 
   /* ============================================
@@ -235,6 +360,7 @@ class SchoolHeatApp {
       const hum = 55 + Math.random() * 35;
       const hi = this.calculateHeatIndex(temp, hum);
       const status = this.getStatus(hi);
+      const quality = this.getQualityScore(temp, hum);
       const reading = {
         id: Date.now(),
         location: loc,
@@ -242,6 +368,8 @@ class SchoolHeatApp {
         humidity: parseFloat(hum.toFixed(1)),
         heatIndex: parseFloat(hi.toFixed(2)),
         status,
+        quality: quality.label,
+        qualityClass: quality.class,
         timestamp: new Date().toISOString()
       };
       this.readings.unshift(reading);
@@ -249,6 +377,7 @@ class SchoolHeatApp {
       this.updateDashboard();
       this.renderHistory();
       this.renderMap();
+      this.checkAlerts();
       this.toast(`Auto-Read: ${loc} — ${hi.toFixed(1)}°C (${STATUS_LABELS[status]})`, 'success');
     }, 2200);
   }
@@ -269,13 +398,11 @@ class SchoolHeatApp {
       if (counts[r.status] !== undefined) counts[r.status]++;
     });
 
-    // Animate counters
     Object.entries(counts).forEach(([status, count]) => {
       const el = document.getElementById('count-' + status);
       if (el) this.animateCounter(el, parseInt(el.textContent) || 0, count);
     });
 
-    // Latest reading
     const latest = this.readings[0];
     if (latest) {
       document.getElementById('latest-location').textContent = latest.location;
@@ -299,14 +426,22 @@ class SchoolHeatApp {
       this.drawGauge(0);
     }
 
-    // Activity list
     const activityList = document.getElementById('activity-list');
     if (activityList) {
       if (this.readings.length === 0) {
-        activityList.innerHTML = '<div class="activity-empty">No readings yet. Add your first reading or use Auto-Read.</div>';
+        activityList.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></div>
+            <div class="empty-title">No readings yet</div>
+            <div class="empty-desc">Add your first reading or tap Auto-Read to get started</div>
+            <button class="btn-primary btn-sm" onclick="app.switchTab('input')" style="margin-top:12px;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add Reading
+            </button>
+          </div>`;
       } else {
         activityList.innerHTML = this.readings.slice(0, 5).map((r, i) => `
-          <div class="activity-item stagger-${Math.min(i+1, 5)}">
+          <div class="activity-item" style="animation-delay:${Math.min(i*0.05,0.3)}s">
             <div class="activity-dot ${r.status}"></div>
             <div class="activity-info">
               <div class="activity-loc">${r.location}</div>
@@ -317,11 +452,14 @@ class SchoolHeatApp {
         `).join('');
       }
     }
+
+    this.checkAlerts();
+    this.updateRecentLocations();
   }
 
   animateCounter(el, from, to) {
     if (from === to) return;
-    const duration = 600;
+    const duration = 500;
     const start = performance.now();
     const step = (now) => {
       const progress = Math.min((now - start) / duration, 1);
@@ -343,23 +481,20 @@ class SchoolHeatApp {
     const size = canvas.width;
     const center = size / 2;
     const radius = size * 0.38;
-    const lineWidth = size * 0.06;
+    const lineWidth = size * 0.055;
     ctx.clearRect(0, 0, size, size);
 
-    // Glow effect
     ctx.save();
-    ctx.shadowColor = 'rgba(59, 130, 246, 0.3)';
-    ctx.shadowBlur = 20;
+    ctx.shadowColor = 'rgba(59, 130, 246, 0.25)';
+    ctx.shadowBlur = 16;
 
-    // Background arc
     ctx.beginPath();
     ctx.arc(center, center, radius, Math.PI * 0.8, Math.PI * 2.2);
-    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
     ctx.lineWidth = lineWidth;
     ctx.lineCap = 'round';
     ctx.stroke();
 
-    // Colored segments
     const segments = [
       { start: Math.PI * 0.8, end: Math.PI * 1.1, color: STATUS_COLORS.safe },
       { start: Math.PI * 1.1, end: Math.PI * 1.4, color: STATUS_COLORS.caution },
@@ -370,22 +505,20 @@ class SchoolHeatApp {
       ctx.beginPath();
       ctx.arc(center, center, radius, seg.start, seg.end);
       ctx.strokeStyle = seg.color;
-      ctx.lineWidth = lineWidth * 0.6;
+      ctx.lineWidth = lineWidth * 0.5;
       ctx.lineCap = 'round';
-      ctx.globalAlpha = 0.25;
+      ctx.globalAlpha = 0.2;
       ctx.stroke();
       ctx.globalAlpha = 1;
     });
 
-    // Value arc
     const maxVal = 50;
     const angle = Math.PI * 0.8 + (Math.min(value, maxVal) / maxVal) * (Math.PI * 1.4);
     const status = this.getStatus(value);
     const color = STATUS_COLORS[status] || STATUS_COLORS.nodata;
 
-    // Glow for value arc
     ctx.shadowColor = color;
-    ctx.shadowBlur = 15;
+    ctx.shadowBlur = 12;
     ctx.beginPath();
     ctx.arc(center, center, radius, Math.PI * 0.8, angle);
     ctx.strokeStyle = color;
@@ -394,24 +527,22 @@ class SchoolHeatApp {
     ctx.stroke();
     ctx.restore();
 
-    // Needle
     if (value > 0) {
-      const needleLen = radius - 8;
+      const needleLen = radius - 6;
       const nx = center + Math.cos(angle) * needleLen;
       const ny = center + Math.sin(angle) * needleLen;
       ctx.save();
       ctx.shadowColor = color;
-      ctx.shadowBlur = 10;
+      ctx.shadowBlur = 8;
       ctx.beginPath();
       ctx.moveTo(center, center);
       ctx.lineTo(nx, ny);
       ctx.strokeStyle = color;
-      ctx.lineWidth = 3;
+      ctx.lineWidth = 2.5;
       ctx.lineCap = 'round';
       ctx.stroke();
-      // Needle dot
       ctx.beginPath();
-      ctx.arc(center, center, 5, 0, Math.PI * 2);
+      ctx.arc(center, center, 4, 0, Math.PI * 2);
       ctx.fillStyle = color;
       ctx.fill();
       ctx.restore();
@@ -440,10 +571,15 @@ class SchoolHeatApp {
     }
 
     if (filtered.length === 0) {
-      list.innerHTML = '<div class="history-empty">No readings match your filters.</div>';
+      list.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+          <div class="empty-title">No readings match</div>
+          <div class="empty-desc">Try adjusting your search or filters</div>
+        </div>`;
     } else {
       list.innerHTML = filtered.map((r, i) => `
-        <div class="history-item" style="animation-delay:${Math.min(i*0.03,0.5)}s">
+        <div class="history-item" style="animation-delay:${Math.min(i*0.03,0.4)}s">
           <div class="history-pin ${r.status}">${r.heatIndex.toFixed(0)}</div>
           <div class="history-info">
             <div class="history-loc">${r.location}</div>
@@ -451,6 +587,7 @@ class SchoolHeatApp {
               <span>${this.formatTime(r.timestamp)}</span>
               <span>${r.temperature.toFixed(1)}°C</span>
               <span>${r.humidity.toFixed(1)}%</span>
+              ${r.quality ? `<span class="quality-badge ${r.qualityClass}">${r.quality}</span>` : ''}
             </div>
           </div>
           <div class="history-hi ${r.status}">${r.heatIndex.toFixed(1)}°C</div>
@@ -458,7 +595,6 @@ class SchoolHeatApp {
       `).join('');
     }
 
-    // Update distribution chart
     this.drawDistributionChart();
   }
 
@@ -467,7 +603,7 @@ class SchoolHeatApp {
   }
 
   /* ============================================
-     TREND CHART (Line Chart with Gradient)
+     TREND CHART with Hover Tooltips
      ============================================ */
 
   setupTrendObserver() {
@@ -486,6 +622,7 @@ class SchoolHeatApp {
 
   drawTrendChart() {
     const canvas = document.getElementById('trend-chart');
+    const tooltip = document.getElementById('trend-tooltip');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const dpr = window.devicePixelRatio || 1;
@@ -496,7 +633,7 @@ class SchoolHeatApp {
 
     const w = rect.width;
     const h = rect.height;
-    const pad = { top: 30, right: 20, bottom: 40, left: 45 };
+    const pad = { top: 28, right: 16, bottom: 36, left: 40 };
     const chartW = w - pad.left - pad.right;
     const chartH = h - pad.top - pad.bottom;
 
@@ -504,13 +641,12 @@ class SchoolHeatApp {
 
     if (this.readings.length < 2) {
       ctx.fillStyle = '#6b7280';
-      ctx.font = '13px Inter, sans-serif';
+      ctx.font = '12px Inter, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText('Add at least 2 readings to see the trend', w/2, h/2);
       return;
     }
 
-    // Group by date, take average HI per day
     const byDate = {};
     this.readings.slice().reverse().forEach(r => {
       const d = new Date(r.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -525,8 +661,8 @@ class SchoolHeatApp {
     const minVal = Math.min(...data, 20);
     const range = maxVal - minVal || 1;
 
-    // Grid lines
-    ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+    // Grid
+    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
     ctx.lineWidth = 1;
     for (let i = 0; i <= 4; i++) {
       const y = pad.top + (chartH / 4) * i;
@@ -534,39 +670,34 @@ class SchoolHeatApp {
       ctx.moveTo(pad.left, y);
       ctx.lineTo(pad.left + chartW, y);
       ctx.stroke();
-      // Y labels
       ctx.fillStyle = '#6b7280';
-      ctx.font = '11px JetBrains Mono, monospace';
+      ctx.font = '10px JetBrains Mono, monospace';
       ctx.textAlign = 'right';
       ctx.textBaseline = 'middle';
-      const val = maxVal - (range / 4) * i;
-      ctx.fillText(val.toFixed(0) + '°', pad.left - 8, y);
+      ctx.fillText((maxVal - (range/4)*i).toFixed(0) + '°', pad.left - 6, y);
     }
 
-    // X labels
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     labels.forEach((label, i) => {
       const x = pad.left + (chartW / (labels.length - 1)) * i;
       ctx.fillStyle = '#6b7280';
-      ctx.font = '10px Inter, sans-serif';
-      ctx.fillText(label, x, pad.top + chartH + 10);
+      ctx.font = '9px Inter, sans-serif';
+      ctx.fillText(label, x, pad.top + chartH + 8);
     });
 
-    // Points
     const points = data.map((val, i) => ({
       x: pad.left + (chartW / (labels.length - 1)) * i,
       y: pad.top + chartH - ((val - minVal) / range) * chartH,
       val,
-      status: this.getStatus(val)
+      status: this.getStatus(val),
+      label: labels[i]
     }));
 
-    // Gradient fill
     const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + chartH);
-    grad.addColorStop(0, 'rgba(59, 130, 246, 0.2)');
+    grad.addColorStop(0, 'rgba(59, 130, 246, 0.15)');
     grad.addColorStop(1, 'rgba(59, 130, 246, 0.0)');
 
-    // Fill area
     ctx.beginPath();
     ctx.moveTo(points[0].x, pad.top + chartH);
     points.forEach(p => ctx.lineTo(p.x, p.y));
@@ -575,10 +706,9 @@ class SchoolHeatApp {
     ctx.fillStyle = grad;
     ctx.fill();
 
-    // Line with glow
     ctx.save();
-    ctx.shadowColor = 'rgba(59, 130, 246, 0.4)';
-    ctx.shadowBlur = 12;
+    ctx.shadowColor = 'rgba(59, 130, 246, 0.3)';
+    ctx.shadowBlur = 10;
     ctx.beginPath();
     ctx.moveTo(points[0].x, points[0].y);
     for (let i = 1; i < points.length; i++) {
@@ -591,29 +721,52 @@ class SchoolHeatApp {
       ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, curr.x, curr.y);
     }
     ctx.strokeStyle = '#3b82f6';
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = 2;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.stroke();
     ctx.restore();
 
-    // Points with glow
     points.forEach(p => {
       const color = STATUS_COLORS[p.status];
       ctx.save();
       ctx.shadowColor = color;
-      ctx.shadowBlur = 10;
+      ctx.shadowBlur = 8;
       ctx.beginPath();
-      ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2);
       ctx.fillStyle = color;
       ctx.fill();
       ctx.beginPath();
-      ctx.arc(p.x, p.y, 8, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, 7, 0, Math.PI * 2);
       ctx.fillStyle = color;
-      ctx.globalAlpha = 0.15;
+      ctx.globalAlpha = 0.12;
       ctx.fill();
       ctx.restore();
     });
+
+    // Hover interaction
+    if (tooltip) {
+      canvas.onmousemove = (e) => {
+        const r = canvas.getBoundingClientRect();
+        const mx = (e.clientX - r.left) * dpr;
+        const my = (e.clientY - r.top) * dpr;
+        let closest = null;
+        let minDist = Infinity;
+        points.forEach(p => {
+          const d = Math.hypot(p.x - mx, p.y - my);
+          if (d < 20 * dpr && d < minDist) { minDist = d; closest = p; }
+        });
+        if (closest) {
+          tooltip.innerHTML = `<div class="tt-date">${closest.label}</div><div class="tt-val ${closest.status}">${closest.val.toFixed(1)}°C — ${STATUS_LABELS[closest.status]}</div>`;
+          tooltip.style.left = (closest.x / dpr) + 'px';
+          tooltip.style.top = ((closest.y / dpr) - 50) + 'px';
+          tooltip.classList.add('visible');
+        } else {
+          tooltip.classList.remove('visible');
+        }
+      };
+      canvas.onmouseleave = () => tooltip.classList.remove('visible');
+    }
   }
 
   /* ============================================
@@ -646,10 +799,10 @@ class SchoolHeatApp {
 
     const w = rect.width;
     const h = rect.height;
-    const centerX = w * 0.35;
+    const centerX = w * 0.32;
     const centerY = h / 2;
-    const radius = Math.min(w, h) * 0.28;
-    const thickness = 18;
+    const radius = Math.min(w, h) * 0.26;
+    const thickness = 16;
 
     ctx.clearRect(0, 0, w, h);
 
@@ -659,7 +812,7 @@ class SchoolHeatApp {
 
     if (total === 0) {
       ctx.fillStyle = '#6b7280';
-      ctx.font = '13px Inter, sans-serif';
+      ctx.font = '12px Inter, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText('No data yet', centerX, centerY);
       return;
@@ -674,10 +827,9 @@ class SchoolHeatApp {
       const endAngle = startAngle + slice;
       const color = STATUS_COLORS[status];
 
-      // Glow
       ctx.save();
       ctx.shadowColor = color;
-      ctx.shadowBlur = 12;
+      ctx.shadowBlur = 10;
       ctx.beginPath();
       ctx.arc(centerX, centerY, radius, startAngle, endAngle);
       ctx.strokeStyle = color;
@@ -689,17 +841,15 @@ class SchoolHeatApp {
       startAngle = endAngle;
     });
 
-    // Center text
     ctx.fillStyle = '#f0f0f5';
-    ctx.font = 'bold 20px Inter, sans-serif';
+    ctx.font = 'bold 18px Inter, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(total.toString(), centerX, centerY - 6);
+    ctx.fillText(total.toString(), centerX, centerY - 5);
     ctx.fillStyle = '#6b7280';
-    ctx.font = '11px Inter, sans-serif';
-    ctx.fillText('Readings', centerX, centerY + 12);
+    ctx.font = '10px Inter, sans-serif';
+    ctx.fillText('Readings', centerX, centerY + 10);
 
-    // Legend
     const legendEl = document.getElementById('distribution-legend');
     if (legendEl) {
       legendEl.innerHTML = statuses.map(s => {
@@ -716,7 +866,7 @@ class SchoolHeatApp {
   }
 
   /* ============================================
-     FORECAST
+     FORECAST with Hover Tooltips
      ============================================ */
 
   setupForecastObserver() {
@@ -735,6 +885,7 @@ class SchoolHeatApp {
 
   drawForecastChart() {
     const canvas = document.getElementById('forecast-chart');
+    const tooltip = document.getElementById('forecast-tooltip');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const dpr = window.devicePixelRatio || 1;
@@ -745,7 +896,7 @@ class SchoolHeatApp {
 
     const w = rect.width;
     const h = rect.height;
-    const pad = { top: 30, right: 20, bottom: 40, left: 45 };
+    const pad = { top: 28, right: 16, bottom: 36, left: 40 };
     const chartW = w - pad.left - pad.right;
     const chartH = h - pad.top - pad.bottom;
 
@@ -753,15 +904,18 @@ class SchoolHeatApp {
 
     if (this.readings.length < 3) {
       ctx.fillStyle = '#6b7280';
-      ctx.font = '13px Inter, sans-serif';
+      ctx.font = '12px Inter, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText('Collect at least 3 days of data for forecast', w/2, h/2);
-      document.getElementById('forecast-summary').textContent = 'Collect at least 3 days of data to generate a forecast.';
+      document.getElementById('forecast-summary').innerHTML = `
+        <div class="empty-state compact">
+          <div class="empty-icon small"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17.5 19c0-1.7-1.3-3-3-3c-1.1 0-2.1.6-2.6 1.5L9 14.5c-.5-.9-1.5-1.5-2.6-1.5c-1.7 0-3 1.3-3 3"/><path d="M22 19c0-1.7-1.3-3-3-3c-1.1 0-2.1.6-2.6 1.5L13.5 14.5c-.5-.9-1.5-1.5-2.6-1.5c-1.7 0-3 1.3-3 3"/><path d="M2 19c0-1.7 1.3-3 3-3c1.1 0 2.1.6 2.6 1.5L10.5 14.5c.5-.9 1.5-1.5 2.6-1.5c1.7 0 3 1.3 3 3"/></svg></div>
+          <div class="empty-desc">Collect at least 3 days of data to generate a forecast</div>
+        </div>`;
       document.getElementById('forecast-cards').innerHTML = '';
       return;
     }
 
-    // Simple linear regression for forecast
     const recent = this.readings.slice(0, Math.min(this.readings.length, 20)).reverse();
     const n = recent.length;
     let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
@@ -794,8 +948,7 @@ class SchoolHeatApp {
     const minVal = Math.min(...allValues, 20);
     const range = maxVal - minVal || 1;
 
-    // Grid
-    ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
     ctx.lineWidth = 1;
     for (let i = 0; i <= 4; i++) {
       const y = pad.top + (chartH / 4) * i;
@@ -804,23 +957,21 @@ class SchoolHeatApp {
       ctx.lineTo(pad.left + chartW, y);
       ctx.stroke();
       ctx.fillStyle = '#6b7280';
-      ctx.font = '11px JetBrains Mono, monospace';
+      ctx.font = '10px JetBrains Mono, monospace';
       ctx.textAlign = 'right';
       ctx.textBaseline = 'middle';
-      ctx.fillText((maxVal - (range/4)*i).toFixed(0) + '°', pad.left - 8, y);
+      ctx.fillText((maxVal - (range/4)*i).toFixed(0) + '°', pad.left - 6, y);
     }
 
-    // Historical points (last 5)
     const histCount = Math.min(5, recent.length);
     const histPoints = [];
     for (let i = 0; i < histCount; i++) {
       const idx = recent.length - histCount + i;
       const x = pad.left + (chartW / 11) * i;
       const y = pad.top + chartH - ((recent[idx].heatIndex - minVal) / range) * chartH;
-      histPoints.push({ x, y, val: recent[idx].heatIndex, status: recent[idx].status, type: 'hist' });
+      histPoints.push({ x, y, val: recent[idx].heatIndex, status: recent[idx].status, type: 'hist', day: days[new Date(recent[idx].timestamp).getDay()] });
     }
 
-    // Forecast points
     const fcPoints = forecast.map((f, i) => ({
       x: pad.left + (chartW / 11) * (histCount + i),
       y: pad.top + chartH - ((f.value - minVal) / range) * chartH,
@@ -832,37 +983,32 @@ class SchoolHeatApp {
 
     const allPoints = [...histPoints, ...fcPoints];
 
-    // X labels
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     allPoints.forEach((p, i) => {
       ctx.fillStyle = p.type === 'fc' ? '#9ca3af' : '#6b7280';
-      ctx.font = '10px Inter, sans-serif';
-      ctx.fillText(p.day || (i+1), p.x, pad.top + chartH + 10);
+      ctx.font = '9px Inter, sans-serif';
+      ctx.fillText(p.day || (i+1), p.x, pad.top + chartH + 8);
     });
 
-    // Historical line
     ctx.save();
     ctx.beginPath();
     ctx.moveTo(histPoints[0].x, histPoints[0].y);
-    for (let i = 1; i < histPoints.length; i++) {
-      ctx.lineTo(histPoints[i].x, histPoints[i].y);
-    }
-    ctx.strokeStyle = 'rgba(107,114,128,0.5)';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([4, 4]);
+    for (let i = 1; i < histPoints.length; i++) ctx.lineTo(histPoints[i].x, histPoints[i].y);
+    ctx.strokeStyle = 'rgba(107,114,128,0.4)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([3, 3]);
     ctx.stroke();
     ctx.setLineDash([]);
     ctx.restore();
 
-    // Forecast line with gradient
     const grad = ctx.createLinearGradient(fcPoints[0].x, 0, fcPoints[fcPoints.length-1].x, 0);
     grad.addColorStop(0, '#3b82f6');
     grad.addColorStop(1, '#8b5cf6');
 
     ctx.save();
-    ctx.shadowColor = 'rgba(139, 92, 246, 0.3)';
-    ctx.shadowBlur = 12;
+    ctx.shadowColor = 'rgba(139, 92, 246, 0.25)';
+    ctx.shadowBlur = 10;
     ctx.beginPath();
     ctx.moveTo(fcPoints[0].x, fcPoints[0].y);
     for (let i = 1; i < fcPoints.length; i++) {
@@ -875,47 +1021,44 @@ class SchoolHeatApp {
       ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, curr.x, curr.y);
     }
     ctx.strokeStyle = grad;
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = 2;
     ctx.lineCap = 'round';
     ctx.stroke();
     ctx.restore();
 
-    // Forecast area fill
     ctx.beginPath();
     ctx.moveTo(fcPoints[0].x, pad.top + chartH);
     fcPoints.forEach(p => ctx.lineTo(p.x, p.y));
     ctx.lineTo(fcPoints[fcPoints.length-1].x, pad.top + chartH);
     ctx.closePath();
     const areaGrad = ctx.createLinearGradient(0, pad.top, 0, pad.top + chartH);
-    areaGrad.addColorStop(0, 'rgba(139, 92, 246, 0.15)');
+    areaGrad.addColorStop(0, 'rgba(139, 92, 246, 0.12)');
     areaGrad.addColorStop(1, 'rgba(139, 92, 246, 0.0)');
     ctx.fillStyle = areaGrad;
     ctx.fill();
 
-    // Points
     allPoints.forEach(p => {
       const color = STATUS_COLORS[p.status];
       ctx.save();
       if (p.type === 'fc') {
         ctx.shadowColor = color;
-        ctx.shadowBlur = 10;
+        ctx.shadowBlur = 8;
       }
       ctx.beginPath();
-      ctx.arc(p.x, p.y, p.type === 'fc' ? 5 : 4, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, p.type === 'fc' ? 4.5 : 3.5, 0, Math.PI * 2);
       ctx.fillStyle = color;
       ctx.fill();
       if (p.type === 'fc') {
         ctx.beginPath();
-        ctx.arc(p.x, p.y, 10, 0, Math.PI * 2);
+        ctx.arc(p.x, p.y, 9, 0, Math.PI * 2);
         ctx.fillStyle = color;
-        ctx.globalAlpha = 0.12;
+        ctx.globalAlpha = 0.1;
         ctx.fill();
         ctx.globalAlpha = 1;
       }
       ctx.restore();
     });
 
-    // Forecast cards
     const cardsEl = document.getElementById('forecast-cards');
     if (cardsEl) {
       cardsEl.innerHTML = forecast.map(f => `
@@ -934,15 +1077,35 @@ class SchoolHeatApp {
       const avgStatus = this.getStatus(avg);
       summary.innerHTML = `Average forecast: <strong style="color:${STATUS_COLORS[avgStatus]}">${avg.toFixed(1)}°C</strong> (${STATUS_LABELS[avgStatus]}) over the next 7 days.`;
     }
+
+    // Hover
+    if (tooltip) {
+      canvas.onmousemove = (e) => {
+        const r = canvas.getBoundingClientRect();
+        const mx = (e.clientX - r.left) * dpr;
+        const my = (e.clientY - r.top) * dpr;
+        let closest = null;
+        let minDist = Infinity;
+        allPoints.forEach(p => {
+          const d = Math.hypot(p.x - mx, p.y - my);
+          if (d < 20 * dpr && d < minDist) { minDist = d; closest = p; }
+        });
+        if (closest) {
+          const prefix = closest.type === 'fc' ? 'Forecast' : 'Recorded';
+          tooltip.innerHTML = `<div class="tt-date">${prefix}: ${closest.day}</div><div class="tt-val ${closest.status}">${closest.val.toFixed(1)}°C — ${STATUS_LABELS[closest.status]}</div>`;
+          tooltip.style.left = (closest.x / dpr) + 'px';
+          tooltip.style.top = ((closest.y / dpr) - 50) + 'px';
+          tooltip.classList.add('visible');
+        } else {
+          tooltip.classList.remove('visible');
+        }
+      };
+      canvas.onmouseleave = () => tooltip.classList.remove('visible');
+    }
   }
 
   getWeatherIcon(status) {
-    const icons = {
-      safe: '☀️',
-      caution: '⛅',
-      danger: '🌤️',
-      extreme: '🔥'
-    };
+    const icons = { safe: '☀️', caution: '⛅', danger: '🌤️', extreme: '🔥' };
     return icons[status] || '☀️';
   }
 
@@ -975,7 +1138,6 @@ class SchoolHeatApp {
       `;
     }).join('');
 
-    // Sync pin overlay to match loaded image dimensions
     this.syncMapPins();
   }
 
@@ -983,14 +1145,12 @@ class SchoolHeatApp {
     const mapImg = document.getElementById('map-img');
     const pinsContainer = document.getElementById('map-pins');
     const mapWrap = document.getElementById('map-wrap');
-    if (!mapImg || !pinsContainer || !mapWrap) return;
+    if (!pinsContainer || !mapWrap) return;
 
-    // If image is loaded and visible, size pins to match it
-    if (mapImg.complete && mapImg.naturalWidth > 0) {
+    if (mapImg && mapImg.complete && mapImg.naturalWidth > 0 && mapImg.style.display !== 'none') {
       pinsContainer.style.width = mapImg.clientWidth + 'px';
       pinsContainer.style.height = mapImg.clientHeight + 'px';
     } else {
-      // Fallback: size pins to the wrap container
       const wrapRect = mapWrap.getBoundingClientRect();
       pinsContainer.style.width = (wrapRect.width - 32) + 'px';
       pinsContainer.style.height = (wrapRect.height - 32) + 'px';
@@ -1030,7 +1190,7 @@ class SchoolHeatApp {
     localStorage.setItem('sh_readings', JSON.stringify(this.readings));
   }
 
-  generateDemoData() {
+  generateDemoData(silent = false) {
     const now = new Date();
     const demo = [];
     for (let d = 6; d >= 0; d--) {
@@ -1046,6 +1206,7 @@ class SchoolHeatApp {
         const ts = new Date(dayBase);
         ts.setHours(hour, minute);
         const hi = this.calculateHeatIndex(temp, hum);
+        const quality = this.getQualityScore(temp, hum);
         demo.push({
           id: ts.getTime() + i,
           location: loc,
@@ -1053,6 +1214,8 @@ class SchoolHeatApp {
           humidity: parseFloat(hum.toFixed(1)),
           heatIndex: parseFloat(hi.toFixed(2)),
           status: this.getStatus(hi),
+          quality: quality.label,
+          qualityClass: quality.class,
           timestamp: ts.toISOString()
         });
       }
@@ -1068,7 +1231,7 @@ class SchoolHeatApp {
     this.drawTrendChart();
     this.drawDistributionChart();
     this.drawForecastChart();
-    this.toast('Demo data generated! 7 days of readings added.', 'success');
+    if (!silent) this.toast('Demo data generated! 7 days of readings added.', 'success');
   }
 
   clearAllData() {
@@ -1092,8 +1255,8 @@ class SchoolHeatApp {
       this.toast('No data to export', 'warning');
       return;
     }
-    const headers = ['ID','Location','Temperature (°C)','Humidity (%)','Heat Index (°C)','Status','Timestamp'];
-    const rows = this.readings.map(r => [r.id, r.location, r.temperature, r.humidity, r.heatIndex, r.status, r.timestamp]);
+    const headers = ['ID','Location','Temperature (°C)','Humidity (%)','Heat Index (°C)','Status','Quality','Timestamp'];
+    const rows = this.readings.map(r => [r.id, r.location, r.temperature, r.humidity, r.heatIndex, r.status, r.quality || '-', r.timestamp]);
     const csv = [headers, ...rows].map(row => row.map(c => `"${c}"`).join(',')).join('\n');
     this.downloadFile(csv, 'schoolheat_readings.csv', 'text/csv');
     this.toast('CSV exported successfully', 'success');
@@ -1146,11 +1309,10 @@ class SchoolHeatApp {
       }, 100);
     }
     if (tabId === 'map') {
-      // Re-render map when tab opens since image may have loaded
-      setTimeout(() => {
-        this.renderMap();
-        this.syncMapPins();
-      }, 100);
+      setTimeout(() => { this.renderMap(); this.syncMapPins(); }, 100);
+    }
+    if (tabId === 'input') {
+      this.updateRecentLocations();
     }
   }
 
@@ -1190,5 +1352,4 @@ class SchoolHeatApp {
   }
 }
 
-// Initialize
 const app = new SchoolHeatApp();
