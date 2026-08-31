@@ -1,38 +1,38 @@
 /* ============================================
    SchoolHeat Ultimate — TUKLAS 2026
-   Core Application Logic v4.1
+   Core Application Logic v4.2 (Corrected Locations)
    ============================================ */
 
 const LOCATIONS = [
-  { name: "School Gate", x: 50, y: 92 },
-  { name: "Admin Building", x: 50, y: 78 },
-  { name: "Principal's Office", x: 45, y: 75 },
-  { name: "Faculty Room", x: 55, y: 75 },
-  { name: "Library", x: 30, y: 65 },
-  { name: "Science Lab", x: 70, y: 65 },
-  { name: "Computer Lab", x: 75, y: 55 },
-  { name: "TLE Building", x: 25, y: 55 },
-  { name: "AVR / Auditorium", x: 50, y: 55 },
-  { name: "Canteen", x: 15, y: 45 },
-  { name: "Clinic", x: 40, y: 45 },
-  { name: "Guidance Office", x: 60, y: 45 },
-  { name: "Registrar", x: 50, y: 42 },
-  { name: "Room 1", x: 20, y: 35 },
-  { name: "Room 2", x: 30, y: 35 },
-  { name: "Room 3", x: 40, y: 35 },
-  { name: "Room 4", x: 50, y: 35 },
-  { name: "Room 5", x: 60, y: 35 },
-  { name: "Room 6", x: 70, y: 35 },
-  { name: "Room 7", x: 80, y: 35 },
-  { name: "Room 8", x: 25, y: 25 },
-  { name: "Room 9", x: 35, y: 25 },
-  { name: "Room 10", x: 45, y: 25 },
-  { name: "Room 11", x: 55, y: 25 },
-  { name: "Room 12", x: 65, y: 25 },
-  { name: "Room 13", x: 75, y: 25 },
-  { name: "Basketball Court", x: 50, y: 12 },
-  { name: "Open Court", x: 20, y: 12 },
-  { name: "Gazebo / Garden", x: 85, y: 15 }
+  { name: "Guard House", x: 52.2, y: 69.5, baseTemp: 34.5, baseHum: 58 },
+  { name: "2 Storey, 2 Classroom, DepEd SS Building", x: 56.8, y: 67.2, baseTemp: 32.0, baseHum: 65 },
+  { name: "3 Classroom, SBP4BE Building AusAID", x: 30.4, y: 66.4, baseTemp: 31.5, baseHum: 68 },
+  { name: "6 Classroom, DepEd Modified School Building (For Condemnation)", x: 15.8, y: 71.8, baseTemp: 33.0, baseHum: 70 },
+  { name: "School Clinic", x: 23.2, y: 72, baseTemp: 29.0, baseHum: 62 },
+  { name: "Handwashing Facility", x: 43.1, y: 42.1, baseTemp: 33.5, baseHum: 72 },
+  { name: "3 Classroom , DepEd SS Building", x: 45.3, y: 52.4, baseTemp: 31.8, baseHum: 66 },
+  { name: "6 Classroom, JICA - Educational Facilities Improvement Program (EFIP)", x: 8, y: 64, baseTemp: 31.2, baseHum: 67 },
+  { name: "2 Classroom, DepEd SS Building", x: 12.3, y: 53, baseTemp: 31.5, baseHum: 68 },
+  { name: "Literacy Office", x: 7.4, y: 42.8, baseTemp: 30.5, baseHum: 64 },
+  { name: "School Canteen", x: 20.7, y: 38.5, baseTemp: 34.0, baseHum: 75 },
+  { name: "Adminsytration Building / DepEd SS Building", x: 48.8, y: 47.4, baseTemp: 30.8, baseHum: 63 },
+  { name: "2 Storey, 4 Classroom, DepEd SS Building", x: 16.3, y: 52.3, baseTemp: 31.8, baseHum: 67 },
+  { name: "4 Classroom, PPSIP Building", x: 12.85, y: 29.4, baseTemp: 31.5, baseHum: 66 },
+  { name: "4 Classroom, SEDP Building", x: 15.1, y: 39.6, baseTemp: 31.6, baseHum: 67 },
+  { name: "2 Classroom, Baptist Donated Building", x: 25, y: 38.7, baseTemp: 31.4, baseHum: 68 },
+  { name: "3 Classroom, SBP4BE Building AusAID", x: 35.5, y: 43, baseTemp: 31.5, baseHum: 68 },
+  { name: "3 Classroom, DepEd SS Building", x: 55.6, y: 39, baseTemp: 31.8, baseHum: 66 },
+  { name: "PTA Office", x: 48.6, y: 36, baseTemp: 30.5, baseHum: 62 },
+  { name: "1 Classroom, SS Building", x: 61, y: 39.3, baseTemp: 31.5, baseHum: 65 },
+  { name: "SSLG Office", x: 19.85, y: 28.55, baseTemp: 30.2, baseHum: 63 },
+  { name: "3 Storey, 15 Classroom, DepEd SS Building", x: 28.8, y: 28.5, baseTemp: 32.0, baseHum: 66 },
+  { name: "2 Storey Comp.Lab", x: 42, y: 34, baseTemp: 30.0, baseHum: 58 },
+  { name: "Guidance Office", x: 47, y: 36.2, baseTemp: 30.3, baseHum: 62 },
+  { name: "1 Classroom, DepEd SS Building", x: 57, y: 51.6, baseTemp: 31.5, baseHum: 66 },
+  { name: "3 Storey, 9 Classroom, DepEd SS Building", x: 61, y: 53, baseTemp: 32.0, baseHum: 67 },
+  { name: "1 Classroom, DepEd SS Building", x: 52.5, y: 47.5, baseTemp: 31.4, baseHum: 65 },
+  { name: "Publication Office", x: 7.2, y: 30, baseTemp: 30.2, baseHum: 63 },
+  { name: "1 Classroom, DepEd SS Building", x: 50.4, y: 37.4, baseTemp: 31.5, baseHum: 66 }
 ];
 
 const STATUS_COLORS = {
@@ -59,6 +59,11 @@ class SchoolHeatApp {
     this.forecastChartLoaded = false;
     this.trendChartLoaded = false;
     this.distributionChartLoaded = false;
+    this._resizeHandler = null;
+    this.autoReadActive = false;
+    this.autoReadInterval = null;
+    this.autoReadLocIndex = 0;
+    this.lastSensorValues = {};
     this.init();
   }
 
@@ -66,6 +71,7 @@ class SchoolHeatApp {
     this.populateLocations();
     this.applySettings();
     this.bindEvents();
+    this.bindSettingsEvents();
     this.startClock();
     this.checkFirstVisit();
     this.updateDashboard();
@@ -75,6 +81,7 @@ class SchoolHeatApp {
     this.setupTrendObserver();
     this.setupDistributionObserver();
     this.setupPullToRefresh();
+    this.setupResizeHandler();
     this.hideLoader();
   }
 
@@ -87,10 +94,6 @@ class SchoolHeatApp {
     }, 1200);
   }
 
-  /* ============================================
-     FIRST VISIT — AUTO DEMO DATA
-     ============================================ */
-
   checkFirstVisit() {
     const visited = localStorage.getItem('sh_visited');
     if (!visited && this.readings.length === 0) {
@@ -99,10 +102,6 @@ class SchoolHeatApp {
       this.toast('Welcome! Demo data loaded for preview', 'info');
     }
   }
-
-  /* ============================================
-     REAL-TIME CLOCK
-     ============================================ */
 
   startClock() {
     const update = () => {
@@ -116,20 +115,14 @@ class SchoolHeatApp {
     setInterval(update, 1000);
   }
 
-  /* ============================================
-     PULL TO REFRESH
-     ============================================ */
-
   setupPullToRefresh() {
     let startY = 0;
     let refreshing = false;
     const content = document.querySelector('.tab-content');
     if (!content) return;
-
     content.addEventListener('touchstart', e => {
       if (content.scrollTop === 0) startY = e.touches[0].clientY;
     }, { passive: true });
-
     content.addEventListener('touchmove', e => {
       if (refreshing || content.scrollTop > 0) return;
       const diff = e.touches[0].clientY - startY;
@@ -144,9 +137,14 @@ class SchoolHeatApp {
     }, { passive: true });
   }
 
-  /* ============================================
-     LOCATION & INPUT
-     ============================================ */
+  setupResizeHandler() {
+    this._resizeHandler = () => {
+      if (this.currentTab === 'map') {
+        this.syncMapPins();
+      }
+    };
+    window.addEventListener('resize', this._resizeHandler);
+  }
 
   populateLocations() {
     const select = document.getElementById('location-select');
@@ -183,9 +181,17 @@ class SchoolHeatApp {
     });
   }
 
-  /* ============================================
-     HEAT INDEX CALCULATION
-     ============================================ */
+  bindSettingsEvents() {
+    const toggles = ['setting-firebase', 'setting-sms', 'setting-outlier', 'setting-spike'];
+    toggles.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('change', () => this.saveSettings());
+    });
+    const calTemp = document.getElementById('cal-temp');
+    const calHum = document.getElementById('cal-humidity');
+    if (calTemp) calTemp.addEventListener('change', () => this.saveSettings());
+    if (calHum) calHum.addEventListener('change', () => this.saveSettings());
+  }
 
   calculateHeatIndex(T, H) {
     const c1 = -8.784694755;
@@ -208,28 +214,17 @@ class SchoolHeatApp {
     return 'extreme';
   }
 
-  /* ============================================
-     DATA QUALITY
-     ============================================ */
-
   getQualityScore(temp, humidity) {
     let score = 100;
-    // Outlier: temp outside 20-50°C
     if (temp < 15 || temp > 55) score -= 30;
     else if (temp < 20 || temp > 50) score -= 15;
-    // Humidity outside 20-100%
     if (humidity < 10 || humidity > 100) score -= 30;
     else if (humidity < 20 || humidity > 95) score -= 15;
-    // Spike detection: unrealistic combo
     if (temp > 40 && humidity > 90) score -= 20;
     if (score >= 90) return { label: 'Good', class: 'good' };
     if (score >= 70) return { label: 'Fair', class: 'warn' };
     return { label: 'Poor', class: 'bad' };
   }
-
-  /* ============================================
-     PREVIEW
-     ============================================ */
 
   updatePreview() {
     const temp = parseFloat(document.getElementById('temp-input')?.value);
@@ -255,10 +250,6 @@ class SchoolHeatApp {
       stat.className = 'preview-status ' + status;
     }
   }
-
-  /* ============================================
-     CALCULATE & SAVE
-     ============================================ */
 
   calculate() {
     const loc = document.getElementById('location-select')?.value;
@@ -299,10 +290,6 @@ class SchoolHeatApp {
     this.updateRecentLocations();
   }
 
-  /* ============================================
-     RECENT LOCATIONS
-     ============================================ */
-
   updateRecentLocations() {
     const recent = [...new Set(this.readings.slice(0, 10).map(r => r.location))].slice(0, 5);
     const container = document.getElementById('recent-locations');
@@ -313,9 +300,16 @@ class SchoolHeatApp {
       return;
     }
     container.style.display = 'flex';
-    chips.innerHTML = recent.map(loc => `
-      <span class="recent-chip" onclick="app.selectLocation('${loc.replace(/'/g, "\'")}')">${loc}</span>
-    `).join('');
+    chips.innerHTML = recent.map(loc => {
+      const safeLoc = loc.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      return `<span class="recent-chip" data-loc="${safeLoc}">${safeLoc}</span>`;
+    }).join('');
+    chips.querySelectorAll('.recent-chip').forEach(chip => {
+      chip.addEventListener('click', (e) => {
+        const loc = e.target.dataset.loc;
+        if (loc) this.selectLocation(loc);
+      });
+    });
   }
 
   selectLocation(loc) {
@@ -326,16 +320,11 @@ class SchoolHeatApp {
     }
   }
 
-  /* ============================================
-     ALERTS
-     ============================================ */
-
   checkAlerts() {
     const dangerReadings = this.readings.filter(r => r.status === 'danger' || r.status === 'extreme');
     const banner = document.getElementById('alert-banner');
     const text = document.getElementById('alert-text');
     if (!banner || !text) return;
-
     if (dangerReadings.length > 0) {
       const latest = dangerReadings[0];
       text.textContent = `${STATUS_LABELS[latest.status]} heat at ${latest.location} — ${latest.heatIndex.toFixed(1)}°C`;
@@ -346,45 +335,126 @@ class SchoolHeatApp {
   }
 
   /* ============================================
-     AUTO READ
+     AUTO-READ TOGGLE (CONTINUOUS SENSOR MODE)
      ============================================ */
 
   autoRead() {
-    const overlay = document.getElementById('auto-read-overlay');
-    if (!overlay) return;
-    overlay.classList.add('active');
-    setTimeout(() => {
-      overlay.classList.remove('active');
-      const loc = LOCATIONS[Math.floor(Math.random() * LOCATIONS.length)].name;
-      const temp = 28 + Math.random() * 12;
-      const hum = 55 + Math.random() * 35;
-      const hi = this.calculateHeatIndex(temp, hum);
-      const status = this.getStatus(hi);
-      const quality = this.getQualityScore(temp, hum);
-      const reading = {
-        id: Date.now(),
-        location: loc,
-        temperature: parseFloat(temp.toFixed(1)),
-        humidity: parseFloat(hum.toFixed(1)),
-        heatIndex: parseFloat(hi.toFixed(2)),
-        status,
-        quality: quality.label,
-        qualityClass: quality.class,
-        timestamp: new Date().toISOString()
-      };
-      this.readings.unshift(reading);
-      this.saveReadings();
-      this.updateDashboard();
-      this.renderHistory();
-      this.renderMap();
-      this.checkAlerts();
-      this.toast(`Auto-Read: ${loc} — ${hi.toFixed(1)}°C (${STATUS_LABELS[status]})`, 'success');
-    }, 2200);
+    if (this.autoReadActive) {
+      this.stopAutoRead();
+    } else {
+      this.startAutoRead();
+    }
   }
 
-  /* ============================================
-     DASHBOARD
-     ============================================ */
+  startAutoRead() {
+    this.autoReadActive = true;
+    this.autoReadLocIndex = 0;
+    this.updateAutoReadButton();
+    this.toast('Auto-Read ON — Sensor scanning all locations', 'success');
+
+    const overlay = document.getElementById('auto-read-overlay');
+    if (overlay) {
+      overlay.classList.add('active');
+      setTimeout(() => overlay.classList.remove('active'), 1500);
+    }
+
+    this.performSensorReading();
+
+    this.autoReadInterval = setInterval(() => {
+      this.performSensorReading();
+    }, 3000);
+  }
+
+  stopAutoRead() {
+    this.autoReadActive = false;
+    if (this.autoReadInterval) {
+      clearInterval(this.autoReadInterval);
+      this.autoReadInterval = null;
+    }
+    this.updateAutoReadButton();
+    this.toast('Auto-Read OFF', 'info');
+  }
+
+  updateAutoReadButton() {
+    const btn = document.getElementById('btn-auto-read');
+    const badge = document.getElementById('auto-read-badge');
+    if (!btn) return;
+    if (this.autoReadActive) {
+      btn.classList.add('auto-read-active');
+      btn.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+        Stop Auto-Read
+      `;
+      if (badge) badge.style.display = 'inline-flex';
+    } else {
+      btn.classList.remove('auto-read-active');
+      btn.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+        Auto-Read Arduino
+      `;
+      if (badge) badge.style.display = 'none';
+    }
+  }
+
+  performSensorReading() {
+    const loc = LOCATIONS[this.autoReadLocIndex];
+    this.autoReadLocIndex = (this.autoReadLocIndex + 1) % LOCATIONS.length;
+
+    let last = this.lastSensorValues[loc.name];
+    if (!last) {
+      last = { temp: loc.baseTemp, hum: loc.baseHum };
+    }
+
+    const tempDrift = (Math.random() - 0.5) * 1.2;
+    const humDrift = (Math.random() - 0.5) * 4;
+
+    let temp = last.temp + tempDrift;
+    let hum = last.hum + humDrift;
+
+    temp = Math.max(20, Math.min(55, temp));
+    hum = Math.max(30, Math.min(98, hum));
+
+    const hour = new Date().getHours();
+    const timeFactor = Math.sin((hour - 6) / 12 * Math.PI) * 2.5;
+    temp += timeFactor;
+
+    this.lastSensorValues[loc.name] = { temp, hum };
+
+    const hi = this.calculateHeatIndex(temp, hum);
+    const status = this.getStatus(hi);
+    const quality = this.getQualityScore(temp, hum);
+
+    const reading = {
+      id: Date.now(),
+      location: loc.name,
+      temperature: parseFloat(temp.toFixed(1)),
+      humidity: parseFloat(hum.toFixed(1)),
+      heatIndex: parseFloat(hi.toFixed(2)),
+      status,
+      quality: quality.label,
+      qualityClass: quality.class,
+      timestamp: new Date().toISOString()
+    };
+
+    this.readings.unshift(reading);
+    this.saveReadings();
+    this.updateDashboard();
+    this.renderHistory();
+    this.renderMap();
+    this.checkAlerts();
+
+    const locSelect = document.getElementById('location-select');
+    if (locSelect) locSelect.value = loc.name;
+    const tempInput = document.getElementById('temp-input');
+    const humInput = document.getElementById('humidity-input');
+    if (tempInput) tempInput.value = temp.toFixed(1);
+    if (humInput) humInput.value = hum.toFixed(1);
+    this.updatePreview();
+
+    if (this.autoReadLocIndex % 5 === 0) {
+      this.toast(`Scanning: ${loc.name} — ${hi.toFixed(1)}°C`, 'info');
+    }
+  }
 
   updateDashboard() {
     const counts = { safe: 0, caution: 0, danger: 0, extreme: 0 };
@@ -470,10 +540,6 @@ class SchoolHeatApp {
     requestAnimationFrame(step);
   }
 
-  /* ============================================
-     CANVAS GAUGE
-     ============================================ */
-
   drawGauge(value) {
     const canvas = document.getElementById('gauge-canvas');
     if (!canvas) return;
@@ -487,13 +553,13 @@ class SchoolHeatApp {
     ctx.save();
     ctx.shadowColor = 'rgba(59, 130, 246, 0.25)';
     ctx.shadowBlur = 16;
-
     ctx.beginPath();
     ctx.arc(center, center, radius, Math.PI * 0.8, Math.PI * 2.2);
     ctx.strokeStyle = 'rgba(255,255,255,0.05)';
     ctx.lineWidth = lineWidth;
     ctx.lineCap = 'round';
     ctx.stroke();
+    ctx.restore();
 
     const segments = [
       { start: Math.PI * 0.8, end: Math.PI * 1.1, color: STATUS_COLORS.safe },
@@ -517,6 +583,7 @@ class SchoolHeatApp {
     const status = this.getStatus(value);
     const color = STATUS_COLORS[status] || STATUS_COLORS.nodata;
 
+    ctx.save();
     ctx.shadowColor = color;
     ctx.shadowBlur = 12;
     ctx.beginPath();
@@ -548,10 +615,6 @@ class SchoolHeatApp {
       ctx.restore();
     }
   }
-
-  /* ============================================
-     HISTORY & CHARTS
-     ============================================ */
 
   renderHistory() {
     const list = document.getElementById('history-list');
@@ -601,10 +664,6 @@ class SchoolHeatApp {
   filterHistory() {
     this.renderHistory();
   }
-
-  /* ============================================
-     TREND CHART with Hover Tooltips
-     ============================================ */
 
   setupTrendObserver() {
     const canvas = document.getElementById('trend-chart');
@@ -661,7 +720,6 @@ class SchoolHeatApp {
     const minVal = Math.min(...data, 20);
     const range = maxVal - minVal || 1;
 
-    // Grid
     ctx.strokeStyle = 'rgba(255,255,255,0.03)';
     ctx.lineWidth = 1;
     for (let i = 0; i <= 4; i++) {
@@ -744,7 +802,6 @@ class SchoolHeatApp {
       ctx.restore();
     });
 
-    // Hover interaction
     if (tooltip) {
       canvas.onmousemove = (e) => {
         const r = canvas.getBoundingClientRect();
@@ -768,10 +825,6 @@ class SchoolHeatApp {
       canvas.onmouseleave = () => tooltip.classList.remove('visible');
     }
   }
-
-  /* ============================================
-     DISTRIBUTION CHART (Donut)
-     ============================================ */
 
   setupDistributionObserver() {
     const canvas = document.getElementById('distribution-chart');
@@ -864,10 +917,6 @@ class SchoolHeatApp {
       }).join('');
     }
   }
-
-  /* ============================================
-     FORECAST with Hover Tooltips
-     ============================================ */
 
   setupForecastObserver() {
     const canvas = document.getElementById('forecast-chart');
@@ -1078,7 +1127,6 @@ class SchoolHeatApp {
       summary.innerHTML = `Average forecast: <strong style="color:${STATUS_COLORS[avgStatus]}">${avg.toFixed(1)}°C</strong> (${STATUS_LABELS[avgStatus]}) over the next 7 days.`;
     }
 
-    // Hover
     if (tooltip) {
       canvas.onmousemove = (e) => {
         const r = canvas.getBoundingClientRect();
@@ -1109,10 +1157,6 @@ class SchoolHeatApp {
     return icons[status] || '☀️';
   }
 
-  /* ============================================
-     MAP
-     ============================================ */
-
   renderMap() {
     const pinsContainer = document.getElementById('map-pins');
     if (!pinsContainer) return;
@@ -1128,12 +1172,11 @@ class SchoolHeatApp {
       const reading = latestByLoc[loc.name];
       const status = reading ? reading.status : 'nodata';
       const hi = reading ? reading.heatIndex.toFixed(1) + '°C' : 'No data';
-      // Escape location names for HTML attribute safety
-      const safeName = loc.name.replace(/"/g, '&quot;');
+      const safeName = loc.name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
       return `
         <div class="map-pin ${status}" style="left:${loc.x}%;top:${loc.y}%" data-loc="${safeName}">
           <div class="map-pin-tooltip">
-            <div class="tt-loc">${loc.name}</div>
+            <div class="tt-loc">${safeName}</div>
             <div class="tt-hi ${status}">${hi}</div>
           </div>
         </div>
@@ -1150,7 +1193,6 @@ class SchoolHeatApp {
     const fallback = document.getElementById('map-fallback');
     if (!pinsContainer || !mapWrap) return;
 
-    // If real image loaded and visible
     if (mapImg && mapImg.complete && mapImg.naturalWidth > 0 && mapImg.style.display !== 'none') {
       pinsContainer.style.width = mapImg.clientWidth + 'px';
       pinsContainer.style.height = mapImg.clientHeight + 'px';
@@ -1158,7 +1200,6 @@ class SchoolHeatApp {
       return;
     }
 
-    // If fallback SVG is active
     if (fallback && fallback.classList.contains('active')) {
       const svg = fallback.querySelector('.svg-map');
       if (svg) {
@@ -1169,13 +1210,13 @@ class SchoolHeatApp {
       }
     }
 
-    // Default: size to wrap container
     const wrapRect = mapWrap.getBoundingClientRect();
     pinsContainer.style.width = Math.max(wrapRect.width - 32, 300) + 'px';
     pinsContainer.style.height = Math.max(wrapRect.height - 32, 300) + 'px';
   }
 
   tryNextMapImage(img) {
+    if (!img) return;
     const attempts = [
       'assets/campus-map.jpg',
       'assets/campus-map.png',
@@ -1191,7 +1232,6 @@ class SchoolHeatApp {
       img.dataset.attempt = current;
       img.src = attempts[current];
     } else {
-      // All attempts failed - show SVG fallback
       img.style.display = 'none';
       const fallback = document.getElementById('map-fallback');
       if (fallback) {
@@ -1202,34 +1242,33 @@ class SchoolHeatApp {
     }
   }
 
-  /* ============================================
-     SETTINGS
-     ============================================ */
-
   applySettings() {
-    document.getElementById('setting-firebase').checked = this.settings.firebase;
-    document.getElementById('setting-sms').checked = this.settings.sms;
-    document.getElementById('setting-outlier').checked = this.settings.outlier;
-    document.getElementById('setting-spike').checked = this.settings.spike;
-    document.getElementById('cal-temp').value = this.settings.tempOffset;
-    document.getElementById('cal-humidity').value = this.settings.humidityOffset;
+    const fb = document.getElementById('setting-firebase');
+    const sms = document.getElementById('setting-sms');
+    const out = document.getElementById('setting-outlier');
+    const spk = document.getElementById('setting-spike');
+    const cTemp = document.getElementById('cal-temp');
+    const cHum = document.getElementById('cal-humidity');
+    if (fb) fb.checked = this.settings.firebase;
+    if (sms) sms.checked = this.settings.sms;
+    if (out) out.checked = this.settings.outlier;
+    if (spk) spk.checked = this.settings.spike;
+    if (cTemp) cTemp.value = this.settings.tempOffset;
+    if (cHum) cHum.value = this.settings.humidityOffset;
   }
 
   saveSettings() {
     this.settings = {
-      firebase: document.getElementById('setting-firebase').checked,
-      sms: document.getElementById('setting-sms').checked,
-      outlier: document.getElementById('setting-outlier').checked,
-      spike: document.getElementById('setting-spike').checked,
-      tempOffset: parseFloat(document.getElementById('cal-temp').value) || 0,
-      humidityOffset: parseFloat(document.getElementById('cal-humidity').value) || 0
+      firebase: document.getElementById('setting-firebase')?.checked ?? true,
+      sms: document.getElementById('setting-sms')?.checked ?? false,
+      outlier: document.getElementById('setting-outlier')?.checked ?? true,
+      spike: document.getElementById('setting-spike')?.checked ?? true,
+      tempOffset: parseFloat(document.getElementById('cal-temp')?.value) || 0,
+      humidityOffset: parseFloat(document.getElementById('cal-humidity')?.value) || 0
     };
     localStorage.setItem('sh_settings', JSON.stringify(this.settings));
+    this.toast('Settings saved', 'success');
   }
-
-  /* ============================================
-     DATA MANAGEMENT
-     ============================================ */
 
   saveReadings() {
     localStorage.setItem('sh_readings', JSON.stringify(this.readings));
@@ -1327,10 +1366,6 @@ class SchoolHeatApp {
     URL.revokeObjectURL(url);
   }
 
-  /* ============================================
-     NAVIGATION
-     ============================================ */
-
   switchTab(tabId) {
     this.currentTab = tabId;
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
@@ -1357,7 +1392,6 @@ class SchoolHeatApp {
       setTimeout(() => {
         this.renderMap();
         this.syncMapPins();
-        // Try loading map image if not already attempted
         const img = document.getElementById('map-img');
         if (img && !img.src && img.dataset.attempt === '0') {
           img.src = 'assets/campus-map.jpg';
@@ -1368,10 +1402,6 @@ class SchoolHeatApp {
       this.updateRecentLocations();
     }
   }
-
-  /* ============================================
-     TOAST
-     ============================================ */
 
   toast(message, type = 'info') {
     const container = document.getElementById('toast-container');
@@ -1391,10 +1421,6 @@ class SchoolHeatApp {
       setTimeout(() => toast.remove(), 250);
     }, 3000);
   }
-
-  /* ============================================
-     UTILS
-     ============================================ */
 
   formatTime(iso) {
     const d = new Date(iso);
