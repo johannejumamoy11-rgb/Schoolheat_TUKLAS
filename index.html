@@ -107,6 +107,7 @@
   <link rel="apple-touch-icon" href="assets/app-logo.png">
   <link rel="icon" type="image/png" href="assets/app-logo.png">
 <base target="_blank">
+<base target="_blank">
 </head>
 <body>
 
@@ -251,7 +252,7 @@
             </div>
             <div class="empty-title">No readings yet</div>
             <div class="empty-desc">Add your first reading or tap Auto-Read to get started</div>
-            <button class="btn-primary btn-sm" onclick="app.switchTab('input')" style="margin-top:12px;">
+            <button class="btn-primary btn-sm" onclick="app.switchTab('monitor')" style="margin-top:12px;">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               Add Reading
             </button>
@@ -260,11 +261,43 @@
       </div>
     </section>
 
-    <!-- TAB 2: MANUAL INPUT -->
-    <section class="tab-panel" id="tab-input">
+    <!-- TAB 2: MONITOR -->
+    <section class="tab-panel" id="tab-monitor">
       <div class="panel-header">
-        <h2 class="panel-title">Manual Input</h2>
-        <p class="panel-subtitle">Log temperature and humidity readings</p>
+        <h2 class="panel-title">Sensor Monitor</h2>
+        <p class="panel-subtitle">Real-time readings, gauge & scales</p>
+      </div>
+
+      <!-- Live Gauge Card -->
+      <div class="glass-card gauge-monitor-card">
+        <div class="card-header">
+          <h3>Live Sensor Gauge</h3>
+          <span class="live-badge" id="monitor-live-badge"><span class="live-dot-sm"></span>LIVE</span>
+        </div>
+        <div class="monitor-gauge-wrap">
+          <canvas id="monitor-gauge" width="240" height="240"></canvas>
+          <div class="monitor-gauge-center">
+            <div class="monitor-gauge-value" id="monitor-gauge-val">--</div>
+            <div class="monitor-gauge-unit">°C Heat Index</div>
+            <div class="monitor-gauge-status" id="monitor-gauge-status">No Data</div>
+          </div>
+        </div>
+        <div class="monitor-scales-row">
+          <div class="scale-block">
+            <div class="scale-label">Temperature</div>
+            <div class="scale-bar-wrap">
+              <div class="scale-bar-bg"><div class="scale-bar-fill temp" id="scale-temp-bar" style="width:0%"></div></div>
+              <div class="scale-val" id="scale-temp-val">-- °C</div>
+            </div>
+          </div>
+          <div class="scale-block">
+            <div class="scale-label">Humidity</div>
+            <div class="scale-bar-wrap">
+              <div class="scale-bar-bg"><div class="scale-bar-fill hum" id="scale-hum-bar" style="width:0%"></div></div>
+              <div class="scale-val" id="scale-hum-val">-- %</div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="glass-card input-card">
@@ -426,7 +459,9 @@
         </div>
       </div>
 
-      <div class="forecast-cards" id="forecast-cards"></div>
+      <div class="forecast-scroll-wrap">
+        <div class="forecast-cards" id="forecast-cards"></div>
+      </div>
     </section>
 
     <!-- TAB 5: MAP -->
@@ -541,6 +576,16 @@
             <span class="toggle-slider"></span>
           </label>
         </div>
+        <div class="glass-card setting-item">
+          <div class="setting-info">
+            <h4>Demo Mode</h4>
+            <p>Simulate sensor data without Arduino</p>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="setting-demo">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
       </div>
 
       <div class="settings-group">
@@ -581,9 +626,9 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
       <span>Dashboard</span>
     </button>
-    <button class="nav-btn" data-tab="input" onclick="app.switchTab('input')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      <span>Input</span>
+    <button class="nav-btn" data-tab="monitor" onclick="app.switchTab('monitor')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+      <span>Monitor</span>
     </button>
     <button class="nav-btn" data-tab="history" onclick="app.switchTab('history')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
