@@ -54,7 +54,7 @@ const STATUS_LABELS = {
 class SchoolHeatApp {
   constructor() {
     this.readings = JSON.parse(localStorage.getItem('sh_readings') || '[]');
-    this.settings = JSON.parse(localStorage.getItem('sh_settings') || '{"firebase":true,"sms":false,"outlier":true,"spike":true,"tempOffset":0,"humidityOffset":0}');
+    this.settings = JSON.parse(localStorage.getItem('sh_settings') || '{"firebase":true,"sms":false,"outlier":true,"spike":true,"demoMode":false,"tempOffset":0,"humidityOffset":0}');
     this.currentTab = 'dashboard';
     this.forecastChartLoaded = false;
     this.trendChartLoaded = false;
@@ -63,6 +63,10 @@ class SchoolHeatApp {
     this.autoReadActive = false;
     this.autoReadInterval = null;
     this.autoReadLocIndex = 0;
+    this.serialPort = null;
+    this.serialReader = null;
+    this.serialConnected = false;
+    this.lastSerialData = null;
     this.lastSensorValues = {};
     this.init();
   }
@@ -170,7 +174,7 @@ class SchoolHeatApp {
         this.switchTab(tabs[parseInt(e.key) - 1]);
       }
       if (e.key === 'n' || e.key === 'N') {
-        this.switchTab('input');
+        this.switchTab('monitor');
         document.getElementById('location-select')?.focus();
       }
       if (e.key === 'c' || e.key === 'C') this.calculate();
@@ -182,7 +186,7 @@ class SchoolHeatApp {
   }
 
   bindSettingsEvents() {
-    const toggles = ['setting-firebase', 'setting-sms', 'setting-outlier', 'setting-spike'];
+    const toggles = ['setting-firebase', 'setting-sms', 'setting-outlier', 'setting-spike', 'setting-demo'];
     toggles.forEach(id => {
       const el = document.getElementById(id);
       if (el) el.addEventListener('change', () => this.saveSettings());
@@ -288,6 +292,7 @@ class SchoolHeatApp {
     document.getElementById('humidity-input').value = '';
     document.getElementById('preview-card').style.display = 'none';
     this.updateRecentLocations();
+    this.updateMonitorGauge();
   }
 
   updateRecentLocations() {
@@ -349,6 +354,10 @@ class SchoolHeatApp {
   startAutoRead() {
     this.autoReadActive = true;
     this.autoReadLocIndex = 0;
+    this.serialPort = null;
+    this.serialReader = null;
+    this.serialConnected = false;
+    this.lastSerialData = null;
     this.updateAutoReadButton();
     this.toast('Auto-Read ON — Sensor scanning all locations', 'success');
 
@@ -371,6 +380,7 @@ class SchoolHeatApp {
       clearInterval(this.autoReadInterval);
       this.autoReadInterval = null;
     }
+    this.disconnectSerial();
     this.updateAutoReadButton();
     this.toast('Auto-Read OFF', 'info');
   }
@@ -397,6 +407,57 @@ class SchoolHeatApp {
   }
 
   performSensorReading() {
+    // Real Arduino mode: use current location only, read from serial buffer
+    if (!this.settings.demoMode) {
+      if (!this.serialConnected) {
+        this.toast('Arduino disconnected. Stopping Auto-Read.', 'error');
+        this.stopAutoRead();
+        return;
+      }
+      if (!this.lastSerialData) {
+        this.toast('Waiting for Arduino data... Make sure your sketch prints T:26.0,H:63.2', 'warning');
+        return;
+      }
+      const locSelect = document.getElementById('location-select');
+      const locName = locSelect ? locSelect.value : null;
+      if (!locName) {
+        this.toast('Please select a location before reading from Arduino.', 'warning');
+        this.stopAutoRead();
+        return;
+      }
+      const temp = this.lastSerialData.temp;
+      const hum = this.lastSerialData.hum;
+      const hi = this.calculateHeatIndex(temp, hum);
+      const status = this.getStatus(hi);
+      const quality = this.getQualityScore(temp, hum);
+      const reading = {
+        id: Date.now(),
+        location: locName,
+        temperature: parseFloat(temp.toFixed(1)),
+        humidity: parseFloat(hum.toFixed(1)),
+        heatIndex: parseFloat(hi.toFixed(2)),
+        status,
+        quality: quality.label,
+        qualityClass: quality.class,
+        timestamp: new Date().toISOString()
+      };
+      this.readings.unshift(reading);
+      this.saveReadings();
+      this.updateDashboard();
+      this.renderHistory();
+      this.renderMap();
+      this.checkAlerts();
+      const tempInput = document.getElementById('temp-input');
+      const humInput = document.getElementById('humidity-input');
+      if (tempInput) tempInput.value = temp.toFixed(1);
+      if (humInput) humInput.value = hum.toFixed(1);
+      this.updatePreview();
+      this.updateMonitorGauge();
+      this.toast(`Saved: ${locName} — ${hi.toFixed(1)}°C (${STATUS_LABELS[status]})`, 'success');
+      return;
+    }
+
+    // Demo mode: old simulation
     const loc = LOCATIONS[this.autoReadLocIndex];
     this.autoReadLocIndex = (this.autoReadLocIndex + 1) % LOCATIONS.length;
 
@@ -450,10 +511,272 @@ class SchoolHeatApp {
     if (tempInput) tempInput.value = temp.toFixed(1);
     if (humInput) humInput.value = hum.toFixed(1);
     this.updatePreview();
+    this.updateMonitorGauge();
 
     if (this.autoReadLocIndex % 5 === 0) {
       this.toast(`Scanning: ${loc.name} — ${hi.toFixed(1)}°C`, 'info');
     }
+  }
+
+
+  /* ============================================
+     WEB SERIAL API — REAL ARDUINO SUPPORT
+     ============================================ */
+
+  async connectSerial() {
+    if (!navigator.serial) {
+      this.toast('Web Serial API not available. Use Chrome/Edge on desktop.', 'error');
+      return false;
+    }
+    try {
+      this.serialPort = await navigator.serial.requestPort({ filters: [] });
+      await this.serialPort.open({ baudRate: 9600 });
+      this.serialConnected = true;
+      this.toast('Arduino connected via USB Serial', 'success');
+      this.readSerialLoop();
+      return true;
+    } catch (err) {
+      if (err.name === 'NotFoundError') {
+        this.toast('No Arduino selected. Plug in your Arduino and try again.', 'warning');
+      } else if (err.name === 'AbortError') {
+        this.toast('Arduino connection cancelled.', 'info');
+      } else {
+        this.toast('Serial error: ' + err.message, 'error');
+      }
+      return false;
+    }
+  }
+
+  async disconnectSerial() {
+    this.serialConnected = false;
+    if (this.serialReader) {
+      try { await this.serialReader.cancel(); } catch (e) {}
+      this.serialReader = null;
+    }
+    if (this.serialPort) {
+      try { await this.serialPort.close(); } catch (e) {}
+      this.serialPort = null;
+    }
+  }
+
+  async readSerialLoop() {
+    if (!this.serialPort || !this.serialConnected) return;
+    try {
+      const textDecoder = new TextDecoderStream();
+      const readableClosed = this.serialPort.readable.pipeTo(textDecoder.writable);
+      this.serialReader = textDecoder.readable.getReader();
+      let buffer = '';
+      while (this.serialConnected) {
+        const { value, done } = await this.serialReader.read();
+        if (done) break;
+        buffer += value;
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+        for (const line of lines) {
+          this.parseSerialLine(line.trim());
+        }
+      }
+    } catch (err) {
+      if (this.serialConnected) {
+        this.toast('Serial read error: ' + err.message, 'error');
+        this.stopAutoRead();
+      }
+    }
+  }
+
+  parseSerialLine(line) {
+    if (!line) return;
+    let temp = null, hum = null;
+
+    // Format: T:26.0,H:63.2  or  Temp:26.0,Hum:63.2
+    const thMatch = line.match(/[Tt]emp(?:erature)?[:=]\s*([0-9.]+).*?[Hh]um(?:idity)?[:=]\s*([0-9.]+)/);
+    if (thMatch) {
+      temp = parseFloat(thMatch[1]);
+      hum = parseFloat(thMatch[2]);
+    }
+
+    // Format: 26.0,63.2  or  26.0;63.2
+    if (temp === null) {
+      const simpleMatch = line.match(/^([0-9.]+)[,;\s]+([0-9.]+)$/);
+      if (simpleMatch) {
+        temp = parseFloat(simpleMatch[1]);
+        hum = parseFloat(simpleMatch[2]);
+      }
+    }
+
+    // Format: JSON {"t":26.0,"h":63.2}
+    if (temp === null) {
+      try {
+        const json = JSON.parse(line);
+        if (json.t !== undefined && json.h !== undefined) {
+          temp = parseFloat(json.t);
+          hum = parseFloat(json.h);
+        } else if (json.temperature !== undefined && json.humidity !== undefined) {
+          temp = parseFloat(json.temperature);
+          hum = parseFloat(json.humidity);
+        }
+      } catch (e) {}
+    }
+
+    if (temp !== null && hum !== null && !isNaN(temp) && !isNaN(hum)) {
+      this.lastSerialData = { temp, hum };
+    }
+  }
+
+
+  /* ============================================
+     MONITOR TAB — GAUGE & SCALES
+     ============================================ */
+
+  updateMonitorGauge() {
+    const canvas = document.getElementById('monitor-gauge');
+    const valEl = document.getElementById('monitor-gauge-val');
+    const statusEl = document.getElementById('monitor-gauge-status');
+    const tempBar = document.getElementById('scale-temp-bar');
+    const tempVal = document.getElementById('scale-temp-val');
+    const humBar = document.getElementById('scale-hum-bar');
+    const humVal = document.getElementById('scale-hum-val');
+
+    const latest = this.readings[0];
+    if (!latest) {
+      if (valEl) valEl.textContent = '--';
+      if (statusEl) { statusEl.textContent = 'No Data'; statusEl.className = 'monitor-gauge-status nodata'; }
+      if (tempVal) tempVal.textContent = '-- °C';
+      if (humVal) humVal.textContent = '-- %';
+      if (tempBar) tempBar.style.width = '0%';
+      if (humBar) humBar.style.width = '0%';
+      this.drawMonitorGauge(0);
+      return;
+    }
+
+    const hi = latest.heatIndex;
+    const status = latest.status;
+    const temp = latest.temperature;
+    const hum = latest.humidity;
+
+    if (valEl) valEl.textContent = hi.toFixed(1);
+    if (statusEl) {
+      statusEl.textContent = STATUS_LABELS[status];
+      statusEl.className = 'monitor-gauge-status ' + status;
+    }
+    if (tempVal) tempVal.textContent = temp.toFixed(1) + ' °C';
+    if (humVal) humVal.textContent = hum.toFixed(1) + ' %';
+    if (tempBar) tempBar.style.width = Math.min(100, Math.max(0, (temp / 55) * 100)) + '%';
+    if (humBar) humBar.style.width = Math.min(100, Math.max(0, hum)) + '%';
+
+    this.drawMonitorGauge(hi);
+  }
+
+  drawMonitorGauge(value) {
+    const canvas = document.getElementById('monitor-gauge');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    const size = canvas.width;
+    const center = size / 2;
+    const radius = size * 0.38;
+    const lineWidth = size * 0.055;
+
+    ctx.clearRect(0, 0, size, size);
+    ctx.scale(dpr, dpr);
+
+    // Background track
+    ctx.save();
+    ctx.shadowColor = 'rgba(59, 130, 246, 0.15)';
+    ctx.shadowBlur = 16;
+    ctx.beginPath();
+    ctx.arc(center, center, radius, Math.PI * 0.8, Math.PI * 2.2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+    ctx.lineWidth = lineWidth;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+    ctx.restore();
+
+    // Colored segments
+    const segments = [
+      { start: Math.PI * 0.8, end: Math.PI * 1.1, color: STATUS_COLORS.safe },
+      { start: Math.PI * 1.1, end: Math.PI * 1.4, color: STATUS_COLORS.caution },
+      { start: Math.PI * 1.4, end: Math.PI * 1.7, color: STATUS_COLORS.danger },
+      { start: Math.PI * 1.7, end: Math.PI * 2.2, color: STATUS_COLORS.extreme }
+    ];
+    segments.forEach(seg => {
+      ctx.beginPath();
+      ctx.arc(center, center, radius, seg.start, seg.end);
+      ctx.strokeStyle = seg.color;
+      ctx.lineWidth = lineWidth * 0.5;
+      ctx.lineCap = 'round';
+      ctx.globalAlpha = 0.25;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    });
+
+    // Value arc
+    const maxVal = 55;
+    const angle = Math.PI * 0.8 + (Math.min(value, maxVal) / maxVal) * (Math.PI * 1.4);
+    const status = this.getStatus(value);
+    const color = STATUS_COLORS[status] || STATUS_COLORS.nodata;
+
+    ctx.save();
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 14;
+    ctx.beginPath();
+    ctx.arc(center, center, radius, Math.PI * 0.8, angle);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lineWidth;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+    ctx.restore();
+
+    // Ticks
+    for (let i = 0; i <= 10; i++) {
+      const tickAngle = Math.PI * 0.8 + (i / 10) * (Math.PI * 1.4);
+      const isMajor = i % 5 === 0;
+      const tickLen = isMajor ? 10 : 5;
+      const tickR = radius - lineWidth / 2 - 4;
+      ctx.beginPath();
+      ctx.moveTo(center + Math.cos(tickAngle) * tickR, center + Math.sin(tickAngle) * tickR);
+      ctx.lineTo(center + Math.cos(tickAngle) * (tickR - tickLen), center + Math.sin(tickAngle) * (tickR - tickLen));
+      ctx.strokeStyle = isMajor ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.08)';
+      ctx.lineWidth = isMajor ? 1.5 : 1;
+      ctx.stroke();
+    }
+
+    // Needle
+    if (value > 0) {
+      const needleLen = radius - 10;
+      const nx = center + Math.cos(angle) * needleLen;
+      const ny = center + Math.sin(angle) * needleLen;
+      ctx.save();
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.moveTo(center, center);
+      ctx.lineTo(nx, ny);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(center, center, 5, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Scale labels
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.font = '9px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const labelAngles = [
+      { angle: Math.PI * 0.8, label: '0°' },
+      { angle: Math.PI * 1.3, label: '27°' },
+      { angle: Math.PI * 1.8, label: '55°' }
+    ];
+    labelAngles.forEach(la => {
+      const lr = radius + lineWidth / 2 + 14;
+      ctx.fillText(la.label, center + Math.cos(la.angle) * lr, center + Math.sin(la.angle) * lr);
+    });
   }
 
   updateDashboard() {
@@ -525,6 +848,7 @@ class SchoolHeatApp {
 
     this.checkAlerts();
     this.updateRecentLocations();
+    this.updateMonitorGauge();
   }
 
   animateCounter(el, from, to) {
@@ -692,7 +1016,7 @@ class SchoolHeatApp {
 
     const w = rect.width;
     const h = rect.height;
-    const pad = { top: 28, right: 16, bottom: 36, left: 40 };
+    const pad = { top: 32, right: 20, bottom: 40, left: 48 };
     const chartW = w - pad.left - pad.right;
     const chartH = h - pad.top - pad.bottom;
 
@@ -716,14 +1040,22 @@ class SchoolHeatApp {
     const labels = Object.keys(byDate).slice(-10);
     const data = labels.map(d => byDate[d].sum / byDate[d].count);
 
-    const maxVal = Math.max(...data, 45);
-    const minVal = Math.min(...data, 20);
-    const range = maxVal - minVal || 1;
+    // Nice scale intervals
+    let maxVal = Math.max(...data, 45);
+    let minVal = Math.min(...data, 20);
+    const range = maxVal - minVal;
+    const step = range <= 10 ? 2 : range <= 20 ? 5 : 10;
+    maxVal = Math.ceil(maxVal / step) * step;
+    minVal = Math.floor(minVal / step) * step;
+    const niceRange = maxVal - minVal || 1;
 
-    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+    // Grid & Y labels
+    ctx.strokeStyle = 'rgba(255,255,255,0.04)';
     ctx.lineWidth = 1;
-    for (let i = 0; i <= 4; i++) {
-      const y = pad.top + (chartH / 4) * i;
+    const gridCount = Math.round(niceRange / step);
+    for (let i = 0; i <= gridCount; i++) {
+      const val = maxVal - (step * i);
+      const y = pad.top + (chartH / gridCount) * i;
       ctx.beginPath();
       ctx.moveTo(pad.left, y);
       ctx.lineTo(pad.left + chartW, y);
@@ -732,8 +1064,16 @@ class SchoolHeatApp {
       ctx.font = '10px JetBrains Mono, monospace';
       ctx.textAlign = 'right';
       ctx.textBaseline = 'middle';
-      ctx.fillText((maxVal - (range/4)*i).toFixed(0) + '°', pad.left - 6, y);
+      ctx.fillText(val.toFixed(0) + '°', pad.left - 8, y);
     }
+
+    // X baseline
+    ctx.beginPath();
+    ctx.moveTo(pad.left, pad.top + chartH);
+    ctx.lineTo(pad.left + chartW, pad.top + chartH);
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
 
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
@@ -741,19 +1081,19 @@ class SchoolHeatApp {
       const x = pad.left + (chartW / (labels.length - 1)) * i;
       ctx.fillStyle = '#6b7280';
       ctx.font = '9px Inter, sans-serif';
-      ctx.fillText(label, x, pad.top + chartH + 8);
+      ctx.fillText(label, x, pad.top + chartH + 10);
     });
 
     const points = data.map((val, i) => ({
       x: pad.left + (chartW / (labels.length - 1)) * i,
-      y: pad.top + chartH - ((val - minVal) / range) * chartH,
+      y: pad.top + chartH - ((val - minVal) / niceRange) * chartH,
       val,
       status: this.getStatus(val),
       label: labels[i]
     }));
 
     const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + chartH);
-    grad.addColorStop(0, 'rgba(59, 130, 246, 0.15)');
+    grad.addColorStop(0, 'rgba(59, 130, 246, 0.18)');
     grad.addColorStop(1, 'rgba(59, 130, 246, 0.0)');
 
     ctx.beginPath();
@@ -765,8 +1105,8 @@ class SchoolHeatApp {
     ctx.fill();
 
     ctx.save();
-    ctx.shadowColor = 'rgba(59, 130, 246, 0.3)';
-    ctx.shadowBlur = 10;
+    ctx.shadowColor = 'rgba(59, 130, 246, 0.35)';
+    ctx.shadowBlur = 12;
     ctx.beginPath();
     ctx.moveTo(points[0].x, points[0].y);
     for (let i = 1; i < points.length; i++) {
@@ -779,7 +1119,7 @@ class SchoolHeatApp {
       ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, curr.x, curr.y);
     }
     ctx.strokeStyle = '#3b82f6';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2.5;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.stroke();
@@ -791,11 +1131,11 @@ class SchoolHeatApp {
       ctx.shadowColor = color;
       ctx.shadowBlur = 8;
       ctx.beginPath();
-      ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
       ctx.fillStyle = color;
       ctx.fill();
       ctx.beginPath();
-      ctx.arc(p.x, p.y, 7, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, 8, 0, Math.PI * 2);
       ctx.fillStyle = color;
       ctx.globalAlpha = 0.12;
       ctx.fill();
@@ -811,12 +1151,12 @@ class SchoolHeatApp {
         let minDist = Infinity;
         points.forEach(p => {
           const d = Math.hypot(p.x - mx, p.y - my);
-          if (d < 20 * dpr && d < minDist) { minDist = d; closest = p; }
+          if (d < 24 * dpr && d < minDist) { minDist = d; closest = p; }
         });
         if (closest) {
           tooltip.innerHTML = `<div class="tt-date">${closest.label}</div><div class="tt-val ${closest.status}">${closest.val.toFixed(1)}°C — ${STATUS_LABELS[closest.status]}</div>`;
           tooltip.style.left = (closest.x / dpr) + 'px';
-          tooltip.style.top = ((closest.y / dpr) - 50) + 'px';
+          tooltip.style.top = ((closest.y / dpr) - 55) + 'px';
           tooltip.classList.add('visible');
         } else {
           tooltip.classList.remove('visible');
@@ -945,7 +1285,7 @@ class SchoolHeatApp {
 
     const w = rect.width;
     const h = rect.height;
-    const pad = { top: 28, right: 16, bottom: 36, left: 40 };
+    const pad = { top: 32, right: 20, bottom: 44, left: 48 };
     const chartW = w - pad.left - pad.right;
     const chartH = h - pad.top - pad.bottom;
 
@@ -993,14 +1333,22 @@ class SchoolHeatApp {
     }
 
     const allValues = [...recent.map(r => r.heatIndex), ...forecast.map(f => f.value)];
-    const maxVal = Math.max(...allValues, 45);
-    const minVal = Math.min(...allValues, 20);
-    const range = maxVal - minVal || 1;
+    let maxVal = Math.max(...allValues, 45);
+    let minVal = Math.min(...allValues, 20);
+    // Round to nice intervals
+    const range = maxVal - minVal;
+    const step = range <= 10 ? 2 : range <= 20 ? 5 : 10;
+    maxVal = Math.ceil(maxVal / step) * step;
+    minVal = Math.floor(minVal / step) * step;
+    const niceRange = maxVal - minVal || 1;
 
-    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+    // Grid lines & Y-axis labels
+    ctx.strokeStyle = 'rgba(255,255,255,0.04)';
     ctx.lineWidth = 1;
-    for (let i = 0; i <= 4; i++) {
-      const y = pad.top + (chartH / 4) * i;
+    const gridCount = Math.round(niceRange / step);
+    for (let i = 0; i <= gridCount; i++) {
+      const val = maxVal - (step * i);
+      const y = pad.top + (chartH / gridCount) * i;
       ctx.beginPath();
       ctx.moveTo(pad.left, y);
       ctx.lineTo(pad.left + chartW, y);
@@ -1009,21 +1357,29 @@ class SchoolHeatApp {
       ctx.font = '10px JetBrains Mono, monospace';
       ctx.textAlign = 'right';
       ctx.textBaseline = 'middle';
-      ctx.fillText((maxVal - (range/4)*i).toFixed(0) + '°', pad.left - 6, y);
+      ctx.fillText(val.toFixed(0) + '°', pad.left - 8, y);
     }
+
+    // X-axis baseline
+    ctx.beginPath();
+    ctx.moveTo(pad.left, pad.top + chartH);
+    ctx.lineTo(pad.left + chartW, pad.top + chartH);
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
 
     const histCount = Math.min(5, recent.length);
     const histPoints = [];
     for (let i = 0; i < histCount; i++) {
       const idx = recent.length - histCount + i;
       const x = pad.left + (chartW / 11) * i;
-      const y = pad.top + chartH - ((recent[idx].heatIndex - minVal) / range) * chartH;
+      const y = pad.top + chartH - ((recent[idx].heatIndex - minVal) / niceRange) * chartH;
       histPoints.push({ x, y, val: recent[idx].heatIndex, status: recent[idx].status, type: 'hist', day: days[new Date(recent[idx].timestamp).getDay()] });
     }
 
     const fcPoints = forecast.map((f, i) => ({
       x: pad.left + (chartW / 11) * (histCount + i),
-      y: pad.top + chartH - ((f.value - minVal) / range) * chartH,
+      y: pad.top + chartH - ((f.value - minVal) / niceRange) * chartH,
       val: f.value,
       status: f.status,
       type: 'fc',
@@ -1037,27 +1393,29 @@ class SchoolHeatApp {
     allPoints.forEach((p, i) => {
       ctx.fillStyle = p.type === 'fc' ? '#9ca3af' : '#6b7280';
       ctx.font = '9px Inter, sans-serif';
-      ctx.fillText(p.day || (i+1), p.x, pad.top + chartH + 8);
+      ctx.fillText(p.day || (i+1), p.x, pad.top + chartH + 10);
     });
 
+    // Historical line (dashed)
     ctx.save();
     ctx.beginPath();
     ctx.moveTo(histPoints[0].x, histPoints[0].y);
     for (let i = 1; i < histPoints.length; i++) ctx.lineTo(histPoints[i].x, histPoints[i].y);
-    ctx.strokeStyle = 'rgba(107,114,128,0.4)';
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([3, 3]);
+    ctx.strokeStyle = 'rgba(107,114,128,0.5)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 4]);
     ctx.stroke();
     ctx.setLineDash([]);
     ctx.restore();
 
+    // Forecast line
     const grad = ctx.createLinearGradient(fcPoints[0].x, 0, fcPoints[fcPoints.length-1].x, 0);
     grad.addColorStop(0, '#3b82f6');
     grad.addColorStop(1, '#8b5cf6');
 
     ctx.save();
-    ctx.shadowColor = 'rgba(139, 92, 246, 0.25)';
-    ctx.shadowBlur = 10;
+    ctx.shadowColor = 'rgba(139, 92, 246, 0.3)';
+    ctx.shadowBlur = 12;
     ctx.beginPath();
     ctx.moveTo(fcPoints[0].x, fcPoints[0].y);
     for (let i = 1; i < fcPoints.length; i++) {
@@ -1070,49 +1428,53 @@ class SchoolHeatApp {
       ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, curr.x, curr.y);
     }
     ctx.strokeStyle = grad;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2.5;
     ctx.lineCap = 'round';
     ctx.stroke();
     ctx.restore();
 
+    // Forecast area fill
     ctx.beginPath();
     ctx.moveTo(fcPoints[0].x, pad.top + chartH);
     fcPoints.forEach(p => ctx.lineTo(p.x, p.y));
     ctx.lineTo(fcPoints[fcPoints.length-1].x, pad.top + chartH);
     ctx.closePath();
     const areaGrad = ctx.createLinearGradient(0, pad.top, 0, pad.top + chartH);
-    areaGrad.addColorStop(0, 'rgba(139, 92, 246, 0.12)');
+    areaGrad.addColorStop(0, 'rgba(139, 92, 246, 0.15)');
     areaGrad.addColorStop(1, 'rgba(139, 92, 246, 0.0)');
     ctx.fillStyle = areaGrad;
     ctx.fill();
 
+    // Points
     allPoints.forEach(p => {
       const color = STATUS_COLORS[p.status];
       ctx.save();
       if (p.type === 'fc') {
         ctx.shadowColor = color;
-        ctx.shadowBlur = 8;
+        ctx.shadowBlur = 10;
       }
       ctx.beginPath();
-      ctx.arc(p.x, p.y, p.type === 'fc' ? 4.5 : 3.5, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, p.type === 'fc' ? 5 : 4, 0, Math.PI * 2);
       ctx.fillStyle = color;
       ctx.fill();
       if (p.type === 'fc') {
         ctx.beginPath();
-        ctx.arc(p.x, p.y, 9, 0, Math.PI * 2);
+        ctx.arc(p.x, p.y, 10, 0, Math.PI * 2);
         ctx.fillStyle = color;
-        ctx.globalAlpha = 0.1;
+        ctx.globalAlpha = 0.12;
         ctx.fill();
         ctx.globalAlpha = 1;
       }
       ctx.restore();
     });
 
+    // Cards
     const cardsEl = document.getElementById('forecast-cards');
     if (cardsEl) {
       cardsEl.innerHTML = forecast.map(f => `
         <div class="forecast-day">
           <div class="forecast-day-name">${f.day}</div>
+          <div class="forecast-day-date">${f.date}</div>
           <div class="forecast-day-icon">${this.getWeatherIcon(f.status)}</div>
           <div class="forecast-day-temp ${f.status}">${f.value.toFixed(1)}°</div>
           <div class="forecast-day-label ${f.status}">${STATUS_LABELS[f.status]}</div>
@@ -1120,13 +1482,24 @@ class SchoolHeatApp {
       `).join('');
     }
 
+    // Summary
     const summary = document.getElementById('forecast-summary');
     if (summary) {
       const avg = forecast.reduce((a, f) => a + f.value, 0) / forecast.length;
       const avgStatus = this.getStatus(avg);
-      summary.innerHTML = `Average forecast: <strong style="color:${STATUS_COLORS[avgStatus]}">${avg.toFixed(1)}°C</strong> (${STATUS_LABELS[avgStatus]}) over the next 7 days.`;
+      const maxFc = Math.max(...forecast.map(f => f.value));
+      const minFc = Math.min(...forecast.map(f => f.value));
+      summary.innerHTML = `
+        <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;">
+          <span>Avg: <strong style="color:${STATUS_COLORS[avgStatus]}">${avg.toFixed(1)}°C</strong></span>
+          <span>High: <strong style="color:${STATUS_COLORS[this.getStatus(maxFc)]}">${maxFc.toFixed(1)}°C</strong></span>
+          <span>Low: <strong style="color:${STATUS_COLORS[this.getStatus(minFc)]}">${minFc.toFixed(1)}°C</strong></span>
+        </div>
+        <div style="margin-top:6px;font-size:0.72rem;color:var(--text-muted);">Next 7 days forecast based on ${n} recent readings</div>
+      `;
     }
 
+    // Tooltip
     if (tooltip) {
       canvas.onmousemove = (e) => {
         const r = canvas.getBoundingClientRect();
@@ -1136,13 +1509,13 @@ class SchoolHeatApp {
         let minDist = Infinity;
         allPoints.forEach(p => {
           const d = Math.hypot(p.x - mx, p.y - my);
-          if (d < 20 * dpr && d < minDist) { minDist = d; closest = p; }
+          if (d < 24 * dpr && d < minDist) { minDist = d; closest = p; }
         });
         if (closest) {
           const prefix = closest.type === 'fc' ? 'Forecast' : 'Recorded';
           tooltip.innerHTML = `<div class="tt-date">${prefix}: ${closest.day}</div><div class="tt-val ${closest.status}">${closest.val.toFixed(1)}°C — ${STATUS_LABELS[closest.status]}</div>`;
           tooltip.style.left = (closest.x / dpr) + 'px';
-          tooltip.style.top = ((closest.y / dpr) - 50) + 'px';
+          tooltip.style.top = ((closest.y / dpr) - 55) + 'px';
           tooltip.classList.add('visible');
         } else {
           tooltip.classList.remove('visible');
@@ -1174,7 +1547,7 @@ class SchoolHeatApp {
       const hi = reading ? reading.heatIndex.toFixed(1) + '°C' : 'No data';
       const safeName = loc.name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
       return `
-        <div class="map-pin ${status}" style="left:${loc.x}%;top:${loc.y}%" data-loc="${safeName}">
+        <div class="map-pin ${status}" style="left:${loc.x}%;top:${loc.y}%" data-loc="${safeName}" onclick="app.togglePinTooltip(this)">
           <div class="map-pin-tooltip">
             <div class="tt-loc">${safeName}</div>
             <div class="tt-hi ${status}">${hi}</div>
@@ -1186,12 +1559,24 @@ class SchoolHeatApp {
     this.syncMapPins();
   }
 
+  togglePinTooltip(pinEl) {
+    // Close all other pins first
+    document.querySelectorAll('.map-pin.active').forEach(p => {
+      if (p !== pinEl) p.classList.remove('active');
+    });
+    pinEl.classList.toggle('active');
+  }
+
   syncMapPins() {
     const mapImg = document.getElementById('map-img');
     const pinsContainer = document.getElementById('map-pins');
     const mapWrap = document.getElementById('map-wrap');
     const fallback = document.getElementById('map-fallback');
     if (!pinsContainer || !mapWrap) return;
+
+    // Clear conflicting constraints so explicit sizing works
+    pinsContainer.style.right = 'auto';
+    pinsContainer.style.bottom = 'auto';
 
     if (mapImg && mapImg.complete && mapImg.naturalWidth > 0 && mapImg.style.display !== 'none') {
       pinsContainer.style.width = mapImg.clientWidth + 'px';
@@ -1247,12 +1632,14 @@ class SchoolHeatApp {
     const sms = document.getElementById('setting-sms');
     const out = document.getElementById('setting-outlier');
     const spk = document.getElementById('setting-spike');
+    const demo = document.getElementById('setting-demo');
     const cTemp = document.getElementById('cal-temp');
     const cHum = document.getElementById('cal-humidity');
     if (fb) fb.checked = this.settings.firebase;
     if (sms) sms.checked = this.settings.sms;
     if (out) out.checked = this.settings.outlier;
     if (spk) spk.checked = this.settings.spike;
+    if (demo) demo.checked = this.settings.demoMode;
     if (cTemp) cTemp.value = this.settings.tempOffset;
     if (cHum) cHum.value = this.settings.humidityOffset;
   }
@@ -1263,6 +1650,7 @@ class SchoolHeatApp {
       sms: document.getElementById('setting-sms')?.checked ?? false,
       outlier: document.getElementById('setting-outlier')?.checked ?? true,
       spike: document.getElementById('setting-spike')?.checked ?? true,
+      demoMode: document.getElementById('setting-demo')?.checked ?? false,
       tempOffset: parseFloat(document.getElementById('cal-temp')?.value) || 0,
       humidityOffset: parseFloat(document.getElementById('cal-humidity')?.value) || 0
     };
@@ -1398,8 +1786,9 @@ class SchoolHeatApp {
         }
       }, 100);
     }
-    if (tabId === 'input') {
+    if (tabId === 'monitor') {
       this.updateRecentLocations();
+      this.updateMonitorGauge();
     }
   }
 
