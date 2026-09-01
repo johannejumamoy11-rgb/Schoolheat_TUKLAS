@@ -170,11 +170,12 @@ class SchoolHeatApp {
     document.addEventListener('keydown', (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
       if (e.key >= '1' && e.key <= '6') {
-        const tabs = ['dashboard','input','history','forecast','map','settings'];
+        const tabs = ['dashboard','monitor','history','forecast','map','settings'];
         this.switchTab(tabs[parseInt(e.key) - 1]);
       }
       if (e.key === 'n' || e.key === 'N') {
         this.switchTab('monitor');
+        this.switchTab('input');
         document.getElementById('location-select')?.focus();
       }
       if (e.key === 'c' || e.key === 'C') this.calculate();
@@ -351,15 +352,21 @@ class SchoolHeatApp {
     }
   }
 
-  startAutoRead() {
+  async startAutoRead() {
+    if (!this.settings.demoMode) {
+      if (!navigator.serial) {
+        this.toast('Web Serial not supported. Use Chrome/Edge desktop, or enable Demo Mode in Settings.', 'error');
+        return;
+      }
+      const connected = await this.connectSerial();
+      if (!connected) return;
+    } else {
+      this.toast('Demo Mode ON — Simulating sensor data', 'warning');
+    }
+
     this.autoReadActive = true;
     this.autoReadLocIndex = 0;
-    this.serialPort = null;
-    this.serialReader = null;
-    this.serialConnected = false;
-    this.lastSerialData = null;
     this.updateAutoReadButton();
-    this.toast('Auto-Read ON — Sensor scanning all locations', 'success');
 
     const overlay = document.getElementById('auto-read-overlay');
     if (overlay) {
@@ -407,7 +414,7 @@ class SchoolHeatApp {
   }
 
   performSensorReading() {
-    // Real Arduino mode: use current location only, read from serial buffer
+    // REAL ARDUINO MODE
     if (!this.settings.demoMode) {
       if (!this.serialConnected) {
         this.toast('Arduino disconnected. Stopping Auto-Read.', 'error');
@@ -447,17 +454,17 @@ class SchoolHeatApp {
       this.renderHistory();
       this.renderMap();
       this.checkAlerts();
+      this.updateMonitorGauge();
       const tempInput = document.getElementById('temp-input');
       const humInput = document.getElementById('humidity-input');
       if (tempInput) tempInput.value = temp.toFixed(1);
       if (humInput) humInput.value = hum.toFixed(1);
       this.updatePreview();
-      this.updateMonitorGauge();
       this.toast(`Saved: ${locName} — ${hi.toFixed(1)}°C (${STATUS_LABELS[status]})`, 'success');
       return;
     }
 
-    // Demo mode: old simulation
+    // DEMO MODE
     const loc = LOCATIONS[this.autoReadLocIndex];
     this.autoReadLocIndex = (this.autoReadLocIndex + 1) % LOCATIONS.length;
 
@@ -503,6 +510,7 @@ class SchoolHeatApp {
     this.renderHistory();
     this.renderMap();
     this.checkAlerts();
+    this.updateMonitorGauge();
 
     const locSelect = document.getElementById('location-select');
     if (locSelect) locSelect.value = loc.name;
@@ -511,16 +519,14 @@ class SchoolHeatApp {
     if (tempInput) tempInput.value = temp.toFixed(1);
     if (humInput) humInput.value = hum.toFixed(1);
     this.updatePreview();
-    this.updateMonitorGauge();
 
     if (this.autoReadLocIndex % 5 === 0) {
       this.toast(`Scanning: ${loc.name} — ${hi.toFixed(1)}°C`, 'info');
     }
   }
 
-
   /* ============================================
-     WEB SERIAL API — REAL ARDUINO SUPPORT
+     WEB SERIAL API — REAL ARDUINO
      ============================================ */
 
   async connectSerial() {
@@ -587,42 +593,26 @@ class SchoolHeatApp {
   parseSerialLine(line) {
     if (!line) return;
     let temp = null, hum = null;
-
-    // Format: T:26.0,H:63.2  or  Temp:26.0,Hum:63.2
     const thMatch = line.match(/[Tt]emp(?:erature)?[:=]\s*([0-9.]+).*?[Hh]um(?:idity)?[:=]\s*([0-9.]+)/);
-    if (thMatch) {
-      temp = parseFloat(thMatch[1]);
-      hum = parseFloat(thMatch[2]);
-    }
-
-    // Format: 26.0,63.2  or  26.0;63.2
+    if (thMatch) { temp = parseFloat(thMatch[1]); hum = parseFloat(thMatch[2]); }
     if (temp === null) {
       const simpleMatch = line.match(/^([0-9.]+)[,;\s]+([0-9.]+)$/);
-      if (simpleMatch) {
-        temp = parseFloat(simpleMatch[1]);
-        hum = parseFloat(simpleMatch[2]);
-      }
+      if (simpleMatch) { temp = parseFloat(simpleMatch[1]); hum = parseFloat(simpleMatch[2]); }
     }
-
-    // Format: JSON {"t":26.0,"h":63.2}
     if (temp === null) {
       try {
         const json = JSON.parse(line);
         if (json.t !== undefined && json.h !== undefined) {
-          temp = parseFloat(json.t);
-          hum = parseFloat(json.h);
+          temp = parseFloat(json.t); hum = parseFloat(json.h);
         } else if (json.temperature !== undefined && json.humidity !== undefined) {
-          temp = parseFloat(json.temperature);
-          hum = parseFloat(json.humidity);
+          temp = parseFloat(json.temperature); hum = parseFloat(json.humidity);
         }
       } catch (e) {}
     }
-
     if (temp !== null && hum !== null && !isNaN(temp) && !isNaN(hum)) {
       this.lastSerialData = { temp, hum };
     }
   }
-
 
   /* ============================================
      MONITOR TAB — GAUGE & SCALES
@@ -672,110 +662,106 @@ class SchoolHeatApp {
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const dpr = window.devicePixelRatio || 1;
-    const size = canvas.width;
-    const center = size / 2;
-    const radius = size * 0.38;
-    const lineWidth = size * 0.055;
-
-    ctx.clearRect(0, 0, size, size);
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
     ctx.scale(dpr, dpr);
 
-    // Background track
-    ctx.save();
-    ctx.shadowColor = 'rgba(59, 130, 246, 0.15)';
-    ctx.shadowBlur = 16;
+    const w = rect.width;
+    const h = rect.height;
+    const centerX = w / 2;
+    const centerY = h * 0.72;
+    const radius = Math.min(w, h) * 0.38;
+    const lineWidth = 14;
+
+    ctx.clearRect(0, 0, w, h);
+
     ctx.beginPath();
-    ctx.arc(center, center, radius, Math.PI * 0.8, Math.PI * 2.2);
-    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+    ctx.arc(centerX, centerY, radius, Math.PI * 0.75, Math.PI * 2.25);
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
     ctx.lineWidth = lineWidth;
     ctx.lineCap = 'round';
     ctx.stroke();
-    ctx.restore();
 
-    // Colored segments
     const segments = [
-      { start: Math.PI * 0.8, end: Math.PI * 1.1, color: STATUS_COLORS.safe },
-      { start: Math.PI * 1.1, end: Math.PI * 1.4, color: STATUS_COLORS.caution },
-      { start: Math.PI * 1.4, end: Math.PI * 1.7, color: STATUS_COLORS.danger },
-      { start: Math.PI * 1.7, end: Math.PI * 2.2, color: STATUS_COLORS.extreme }
+      { start: Math.PI * 0.75, end: Math.PI * 1.125, color: STATUS_COLORS.safe },
+      { start: Math.PI * 1.125, end: Math.PI * 1.5, color: STATUS_COLORS.caution },
+      { start: Math.PI * 1.5, end: Math.PI * 1.875, color: STATUS_COLORS.danger },
+      { start: Math.PI * 1.875, end: Math.PI * 2.25, color: STATUS_COLORS.extreme }
     ];
     segments.forEach(seg => {
       ctx.beginPath();
-      ctx.arc(center, center, radius, seg.start, seg.end);
+      ctx.arc(centerX, centerY, radius, seg.start, seg.end);
       ctx.strokeStyle = seg.color;
-      ctx.lineWidth = lineWidth * 0.5;
+      ctx.lineWidth = lineWidth * 0.45;
       ctx.lineCap = 'round';
-      ctx.globalAlpha = 0.25;
+      ctx.globalAlpha = 0.3;
       ctx.stroke();
       ctx.globalAlpha = 1;
     });
 
-    // Value arc
     const maxVal = 55;
-    const angle = Math.PI * 0.8 + (Math.min(value, maxVal) / maxVal) * (Math.PI * 1.4);
+    const angle = Math.PI * 0.75 + (Math.min(value, maxVal) / maxVal) * (Math.PI * 1.5);
     const status = this.getStatus(value);
     const color = STATUS_COLORS[status] || STATUS_COLORS.nodata;
 
     ctx.save();
     ctx.shadowColor = color;
-    ctx.shadowBlur = 14;
+    ctx.shadowBlur = 16;
     ctx.beginPath();
-    ctx.arc(center, center, radius, Math.PI * 0.8, angle);
+    ctx.arc(centerX, centerY, radius, Math.PI * 0.75, angle);
     ctx.strokeStyle = color;
     ctx.lineWidth = lineWidth;
     ctx.lineCap = 'round';
     ctx.stroke();
     ctx.restore();
 
-    // Ticks
     for (let i = 0; i <= 10; i++) {
-      const tickAngle = Math.PI * 0.8 + (i / 10) * (Math.PI * 1.4);
+      const tickAngle = Math.PI * 0.75 + (i / 10) * (Math.PI * 1.5);
       const isMajor = i % 5 === 0;
       const tickLen = isMajor ? 10 : 5;
-      const tickR = radius - lineWidth / 2 - 4;
+      const tickR = radius - lineWidth / 2 - 6;
       ctx.beginPath();
-      ctx.moveTo(center + Math.cos(tickAngle) * tickR, center + Math.sin(tickAngle) * tickR);
-      ctx.lineTo(center + Math.cos(tickAngle) * (tickR - tickLen), center + Math.sin(tickAngle) * (tickR - tickLen));
-      ctx.strokeStyle = isMajor ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.08)';
+      ctx.moveTo(centerX + Math.cos(tickAngle) * tickR, centerY + Math.sin(tickAngle) * tickR);
+      ctx.lineTo(centerX + Math.cos(tickAngle) * (tickR - tickLen), centerY + Math.sin(tickAngle) * (tickR - tickLen));
+      ctx.strokeStyle = isMajor ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.1)';
       ctx.lineWidth = isMajor ? 1.5 : 1;
       ctx.stroke();
     }
 
-    // Needle
     if (value > 0) {
-      const needleLen = radius - 10;
-      const nx = center + Math.cos(angle) * needleLen;
-      const ny = center + Math.sin(angle) * needleLen;
+      const needleLen = radius - 14;
+      const nx = centerX + Math.cos(angle) * needleLen;
+      const ny = centerY + Math.sin(angle) * needleLen;
       ctx.save();
       ctx.shadowColor = color;
       ctx.shadowBlur = 10;
       ctx.beginPath();
-      ctx.moveTo(center, center);
+      ctx.moveTo(centerX, centerY);
       ctx.lineTo(nx, ny);
       ctx.strokeStyle = color;
       ctx.lineWidth = 3;
       ctx.lineCap = 'round';
       ctx.stroke();
       ctx.beginPath();
-      ctx.arc(center, center, 5, 0, Math.PI * 2);
+      ctx.arc(centerX, centerY, 5, 0, Math.PI * 2);
       ctx.fillStyle = color;
       ctx.fill();
       ctx.restore();
     }
 
-    // Scale labels
-    ctx.fillStyle = 'rgba(255,255,255,0.25)';
-    ctx.font = '9px Inter, sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.font = '10px Inter, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    const labelAngles = [
-      { angle: Math.PI * 0.8, label: '0°' },
-      { angle: Math.PI * 1.3, label: '27°' },
-      { angle: Math.PI * 1.8, label: '55°' }
+    const labels = [
+      { angle: Math.PI * 0.75, text: '0°' },
+      { angle: Math.PI * 1.25, text: '27°' },
+      { angle: Math.PI * 2.25, text: '55°' }
     ];
-    labelAngles.forEach(la => {
-      const lr = radius + lineWidth / 2 + 14;
-      ctx.fillText(la.label, center + Math.cos(la.angle) * lr, center + Math.sin(la.angle) * lr);
+    labels.forEach(la => {
+      const lr = radius + lineWidth / 2 + 16;
+      ctx.fillText(la.text, centerX + Math.cos(la.angle) * lr, centerY + Math.sin(la.angle) * lr);
     });
   }
 
@@ -1040,7 +1026,6 @@ class SchoolHeatApp {
     const labels = Object.keys(byDate).slice(-10);
     const data = labels.map(d => byDate[d].sum / byDate[d].count);
 
-    // Nice scale intervals
     let maxVal = Math.max(...data, 45);
     let minVal = Math.min(...data, 20);
     const range = maxVal - minVal;
@@ -1049,7 +1034,6 @@ class SchoolHeatApp {
     minVal = Math.floor(minVal / step) * step;
     const niceRange = maxVal - minVal || 1;
 
-    // Grid & Y labels
     ctx.strokeStyle = 'rgba(255,255,255,0.04)';
     ctx.lineWidth = 1;
     const gridCount = Math.round(niceRange / step);
@@ -1067,7 +1051,6 @@ class SchoolHeatApp {
       ctx.fillText(val.toFixed(0) + '°', pad.left - 8, y);
     }
 
-    // X baseline
     ctx.beginPath();
     ctx.moveTo(pad.left, pad.top + chartH);
     ctx.lineTo(pad.left + chartW, pad.top + chartH);
@@ -1335,14 +1318,12 @@ class SchoolHeatApp {
     const allValues = [...recent.map(r => r.heatIndex), ...forecast.map(f => f.value)];
     let maxVal = Math.max(...allValues, 45);
     let minVal = Math.min(...allValues, 20);
-    // Round to nice intervals
     const range = maxVal - minVal;
     const step = range <= 10 ? 2 : range <= 20 ? 5 : 10;
     maxVal = Math.ceil(maxVal / step) * step;
     minVal = Math.floor(minVal / step) * step;
     const niceRange = maxVal - minVal || 1;
 
-    // Grid lines & Y-axis labels
     ctx.strokeStyle = 'rgba(255,255,255,0.04)';
     ctx.lineWidth = 1;
     const gridCount = Math.round(niceRange / step);
@@ -1360,7 +1341,6 @@ class SchoolHeatApp {
       ctx.fillText(val.toFixed(0) + '°', pad.left - 8, y);
     }
 
-    // X-axis baseline
     ctx.beginPath();
     ctx.moveTo(pad.left, pad.top + chartH);
     ctx.lineTo(pad.left + chartW, pad.top + chartH);
@@ -1396,7 +1376,6 @@ class SchoolHeatApp {
       ctx.fillText(p.day || (i+1), p.x, pad.top + chartH + 10);
     });
 
-    // Historical line (dashed)
     ctx.save();
     ctx.beginPath();
     ctx.moveTo(histPoints[0].x, histPoints[0].y);
@@ -1408,7 +1387,6 @@ class SchoolHeatApp {
     ctx.setLineDash([]);
     ctx.restore();
 
-    // Forecast line
     const grad = ctx.createLinearGradient(fcPoints[0].x, 0, fcPoints[fcPoints.length-1].x, 0);
     grad.addColorStop(0, '#3b82f6');
     grad.addColorStop(1, '#8b5cf6');
@@ -1433,7 +1411,6 @@ class SchoolHeatApp {
     ctx.stroke();
     ctx.restore();
 
-    // Forecast area fill
     ctx.beginPath();
     ctx.moveTo(fcPoints[0].x, pad.top + chartH);
     fcPoints.forEach(p => ctx.lineTo(p.x, p.y));
@@ -1445,7 +1422,6 @@ class SchoolHeatApp {
     ctx.fillStyle = areaGrad;
     ctx.fill();
 
-    // Points
     allPoints.forEach(p => {
       const color = STATUS_COLORS[p.status];
       ctx.save();
@@ -1468,7 +1444,6 @@ class SchoolHeatApp {
       ctx.restore();
     });
 
-    // Cards
     const cardsEl = document.getElementById('forecast-cards');
     if (cardsEl) {
       cardsEl.innerHTML = forecast.map(f => `
@@ -1482,7 +1457,6 @@ class SchoolHeatApp {
       `).join('');
     }
 
-    // Summary
     const summary = document.getElementById('forecast-summary');
     if (summary) {
       const avg = forecast.reduce((a, f) => a + f.value, 0) / forecast.length;
@@ -1499,7 +1473,6 @@ class SchoolHeatApp {
       `;
     }
 
-    // Tooltip
     if (tooltip) {
       canvas.onmousemove = (e) => {
         const r = canvas.getBoundingClientRect();
@@ -1560,7 +1533,6 @@ class SchoolHeatApp {
   }
 
   togglePinTooltip(pinEl) {
-    // Close all other pins first
     document.querySelectorAll('.map-pin.active').forEach(p => {
       if (p !== pinEl) p.classList.remove('active');
     });
@@ -1574,7 +1546,6 @@ class SchoolHeatApp {
     const fallback = document.getElementById('map-fallback');
     if (!pinsContainer || !mapWrap) return;
 
-    // Clear conflicting constraints so explicit sizing works
     pinsContainer.style.right = 'auto';
     pinsContainer.style.bottom = 'auto';
 
