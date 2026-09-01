@@ -268,33 +268,37 @@
         <p class="panel-subtitle">Real-time readings, gauge & scales</p>
       </div>
 
-      <!-- Live Gauge Card -->
-      <div class="glass-card gauge-monitor-card">
+      <!-- Live Gauge -->
+      <div class="glass-card monitor-gauge-card">
         <div class="card-header">
           <h3>Live Sensor Gauge</h3>
-          <span class="live-badge" id="monitor-live-badge"><span class="live-dot-sm"></span>LIVE</span>
+          <span class="monitor-live-badge" id="monitor-live-badge"><span class="live-dot-sm"></span>LIVE</span>
         </div>
         <div class="monitor-gauge-wrap">
-          <canvas id="monitor-gauge" width="240" height="240"></canvas>
-          <div class="monitor-gauge-center">
+          <canvas id="monitor-gauge" width="260" height="200"></canvas>
+          <div class="monitor-gauge-overlay">
             <div class="monitor-gauge-value" id="monitor-gauge-val">--</div>
             <div class="monitor-gauge-unit">°C Heat Index</div>
             <div class="monitor-gauge-status" id="monitor-gauge-status">No Data</div>
           </div>
         </div>
-        <div class="monitor-scales-row">
-          <div class="scale-block">
-            <div class="scale-label">Temperature</div>
-            <div class="scale-bar-wrap">
-              <div class="scale-bar-bg"><div class="scale-bar-fill temp" id="scale-temp-bar" style="width:0%"></div></div>
-              <div class="scale-val" id="scale-temp-val">-- °C</div>
+        <div class="monitor-scales">
+          <div class="monitor-scale">
+            <div class="scale-info">
+              <span class="scale-name">Temperature</span>
+              <span class="scale-num" id="scale-temp-val">-- °C</span>
+            </div>
+            <div class="scale-track">
+              <div class="scale-fill temp" id="scale-temp-bar" style="width:0%"></div>
             </div>
           </div>
-          <div class="scale-block">
-            <div class="scale-label">Humidity</div>
-            <div class="scale-bar-wrap">
-              <div class="scale-bar-bg"><div class="scale-bar-fill hum" id="scale-hum-bar" style="width:0%"></div></div>
-              <div class="scale-val" id="scale-hum-val">-- %</div>
+          <div class="monitor-scale">
+            <div class="scale-info">
+              <span class="scale-name">Humidity</span>
+              <span class="scale-num" id="scale-hum-val">-- %</span>
+            </div>
+            <div class="scale-track">
+              <div class="scale-fill hum" id="scale-hum-bar" style="width:0%"></div>
             </div>
           </div>
         </div>
@@ -459,9 +463,7 @@
         </div>
       </div>
 
-      <div class="forecast-scroll-wrap">
-        <div class="forecast-cards" id="forecast-cards"></div>
-      </div>
+      <div class="forecast-scroll-wrap"><div class="forecast-cards" id="forecast-cards"></div></div>
     </section>
 
     <!-- TAB 5: MAP -->
